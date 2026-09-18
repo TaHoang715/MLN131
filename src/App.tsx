@@ -369,7 +369,20 @@ function WaitingRoom({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const joinLink = `${window.location.origin}${window.location.pathname}?code=${room.code}`;
+  const getJoinLink = () => {
+    if (typeof window === "undefined") return "";
+    const host = window.location.hostname;
+    if (host === "localhost" || host === "127.0.0.1") {
+      return `${window.location.origin}${window.location.pathname}?code=${room.code}`;
+    }
+    // Always use canonical production domain to prevent Vercel Authentication wall on preview URLs
+    if (host.includes("vercel.app")) {
+      return `https://mln-131-phi-lac.vercel.app/?code=${room.code}`;
+    }
+    return `${window.location.origin}${window.location.pathname}?code=${room.code}`;
+  };
+
+  const joinLink = getJoinLink();
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(joinLink)}`;
 
   const copyLink = () => {
