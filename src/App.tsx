@@ -1378,8 +1378,8 @@ export default function App() {
   return (
     <div className="w-full min-h-screen flex flex-col items-center justify-start pt-6 pb-12 bg-[#080c16] text-slate-100 relative overflow-x-hidden selection:bg-amber-500 selection:text-slate-950">
       {/* Background Audio Tracks */}
-      <audio ref={lobbyAudioRef} src="/sound/ovtk.mp3" loop preload="auto" />
-      <audio ref={gameAudioRef} src="/sound/liberation.mp3" loop preload="auto" />
+      <audio ref={lobbyAudioRef} src="/sound/astral.mp3" loop preload="auto" />
+      <audio ref={gameAudioRef} src="/sound/symphony.mp3" loop preload="auto" />
       <audio ref={winAudioRef} src="/sound/win.mp3" preload="auto" />
 
       {/* Background glow ornaments */}
