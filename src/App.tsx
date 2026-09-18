@@ -760,6 +760,7 @@ function GameplayView({
                 <img
                   src={scenarioImage}
                   alt="Minh họa gợi ý"
+                  onError={(e) => { (e.currentTarget as HTMLElement).style.display = "none"; }}
                   className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-500"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex items-end justify-between p-3 text-xs text-slate-300">
@@ -848,6 +849,7 @@ function GameplayView({
                 <img
                   src={scenarioImage}
                   alt="Hình gợi ý Đuổi hình bắt chữ"
+                  onError={(e) => { (e.currentTarget as HTMLElement).style.display = "none"; }}
                   className="w-full max-h-64 sm:max-h-80 object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex items-end justify-between p-4 text-xs sm:text-sm text-slate-200">
@@ -1125,11 +1127,13 @@ function RoundResultsView({
 // FINAL RESULTS VIEW: BẢNG VÀNG
 // ============================================================
 function FinalResultsView({ players, onPlayAgain }: { players: Doc<"mlnPlayers">[], onPlayAgain: () => void }) {
-  const sorted = sortPlayersByScore(players.filter(p => !p.isHost));
+  const nonHostPlayers = players.filter(p => !p.isHost);
+  const displayPlayers = nonHostPlayers.length > 0 ? nonHostPlayers : players;
+  const sorted = sortPlayersByScore(displayPlayers);
 
   useEffect(() => {
     sound.playVictoryFanfare();
-    confetti({ particleCount: 100, spread: 80, origin: { y: 0.6 } });
+    confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
   }, []);
 
   return (
@@ -1142,36 +1146,42 @@ function FinalResultsView({ players, onPlayAgain }: { players: Doc<"mlnPlayers">
         </p>
       </div>
 
-      <div className="space-y-3">
-        {sorted.map((p, i) => (
-          <motion.div
-            initial={{ x: -30, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            transition={{ delay: i * 0.1 }}
-            key={p._id}
-            className={`flex items-center gap-4 p-4 sm:p-5 rounded-2xl border-2 shadow-xl ${
-              i === 0
-                ? "bg-amber-950/60 border-amber-400"
-                : i === 1
-                ? "bg-slate-800/80 border-slate-500"
-                : i === 2
-                ? "bg-orange-950/50 border-orange-600"
-                : "bg-slate-900/70 border-slate-800"
-            }`}
-          >
-            <span className={`w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center rounded-2xl font-black text-lg ${
-              i === 0 ? "bg-amber-400 text-slate-950" : i === 1 ? "bg-slate-300 text-slate-950" : i === 2 ? "bg-amber-700 text-white" : "bg-slate-800 text-slate-400"
-            }`}>
-              {i === 0 ? <Crown className="w-6 h-6 text-slate-950" /> : i + 1}
-            </span>
-            <span className="flex-1 text-left font-bold text-lg sm:text-xl truncate text-white">{p.name}</span>
-            <div className="text-right">
-              <div className="text-xl sm:text-2xl font-mono font-black text-amber-400">{p.score ?? 0}</div>
-              <div className="text-[10px] uppercase font-bold text-slate-400">Điểm chung cuộc</div>
-            </div>
-          </motion.div>
-        ))}
-      </div>
+      {sorted.length === 0 ? (
+        <div className="bg-slate-900/80 p-8 rounded-3xl border border-slate-800 text-slate-300">
+          Chưa có thành viên nào nộp điểm thi đấu.
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {sorted.map((p, i) => (
+            <motion.div
+              initial={{ x: -30, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              transition={{ delay: i * 0.1 }}
+              key={p._id}
+              className={`flex items-center gap-4 p-4 sm:p-5 rounded-2xl border-2 shadow-xl ${
+                i === 0
+                  ? "bg-amber-950/60 border-amber-400"
+                  : i === 1
+                  ? "bg-slate-800/80 border-slate-500"
+                  : i === 2
+                  ? "bg-orange-950/50 border-orange-600"
+                  : "bg-slate-900/70 border-slate-800"
+              }`}
+            >
+              <span className={`w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center rounded-2xl font-black text-lg ${
+                i === 0 ? "bg-amber-400 text-slate-950" : i === 1 ? "bg-slate-300 text-slate-950" : i === 2 ? "bg-amber-700 text-white" : "bg-slate-800 text-slate-400"
+              }`}>
+                {i === 0 ? <Crown className="w-6 h-6 text-slate-950" /> : i + 1}
+              </span>
+              <span className="flex-1 text-left font-bold text-lg sm:text-xl truncate text-white">{p.name}</span>
+              <div className="text-right">
+                <div className="text-xl sm:text-2xl font-mono font-black text-amber-400">{p.score ?? 0}</div>
+                <div className="text-[10px] uppercase font-bold text-slate-400">Điểm chung cuộc</div>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      )}
 
       <button
         onClick={() => { sound.playClick(); onPlayAgain(); }}
@@ -1346,15 +1356,22 @@ export default function App() {
 
   async function handleNextRound() {
     sound.playClick();
+    if (!roomId || !playerId) return;
     try {
-      await nextRoundMutation({ roomId: roomId as Id<"mlnRooms">, playerId: playerId as Id<"mlnPlayers"> });
-    } catch (e: any) { setError(e.message || "Không thể chuyển vòng"); }
+      await nextRoundMutation({
+        roomId: roomId as Id<"mlnRooms">,
+        playerId: playerId as Id<"mlnPlayers">,
+        totalRounds: SCENARIOS.length,
+      });
+    } catch (e: any) {
+      setError(e.message || "Không thể chuyển vòng");
+    }
   }
 
   const isHost = currentPlayer?.isHost ?? false;
   const isInRoom = !!(roomId && playerId && room && currentPlayer);
 
-  let content: React.ReactNode;
+  let content: React.ReactNode = null;
 
   if (!isInRoom) {
     content = <LobbyView onCreateRoom={handleCreateRoom} onJoinRoom={handleJoinRoom} error={error} loading={loading} />;
@@ -1370,21 +1387,24 @@ export default function App() {
         onToggleMusic={toggleMusic}
       />
     );
-  } else if (room.status === "playing" && room.phase === "choosing") {
-    content = (
-      <GameplayView
-        room={room}
-        currentPlayer={currentPlayer}
-        players={players ?? []}
-        onChoice={handleAnswerSubmit}
-        onForceRound={handleForceProcessRound}
-        onEndGame={handleEndGame}
-        onZoomImage={(url) => setZoomImageUrl(url)}
-      />
-    );
-  } else if (room.status === "playing" && room.phase === "results") {
-    content = <RoundResultsView room={room} players={players ?? []} isHost={isHost} onNextRound={handleNextRound} />;
-  } else if (room.status === "finished") {
+  } else if (room.status === "playing") {
+    if (room.phase === "choosing") {
+      content = (
+        <GameplayView
+          room={room}
+          currentPlayer={currentPlayer}
+          players={players ?? []}
+          onChoice={handleAnswerSubmit}
+          onForceRound={handleForceProcessRound}
+          onEndGame={handleEndGame}
+          onZoomImage={(url) => setZoomImageUrl(url)}
+        />
+      );
+    } else {
+      content = <RoundResultsView room={room} players={players ?? []} isHost={isHost} onNextRound={handleNextRound} />;
+    }
+  } else {
+    // room.status === "finished" or any fallback state
     content = <FinalResultsView players={players ?? []} onPlayAgain={handleLeaveGame} />;
   }
 

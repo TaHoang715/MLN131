@@ -107,7 +107,7 @@ export const nextRound = mutation({
   args: {
     roomId: v.id("mlnRooms"),
     playerId: v.id("mlnPlayers"),
-    totalRounds: v.number(),
+    totalRounds: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const player = await ctx.db.get(args.playerId);
@@ -118,7 +118,9 @@ export const nextRound = mutation({
     const room = await ctx.db.get(args.roomId);
     if (!room) throw new Error("Phòng không tồn tại.");
 
-    if (room.currentRound >= args.totalRounds) {
+    const maxRounds = args.totalRounds ?? 10;
+
+    if (room.currentRound >= maxRounds) {
       // Finished all rounds
       await ctx.db.patch(args.roomId, {
         status: "finished",
