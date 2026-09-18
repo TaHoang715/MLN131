@@ -1,6 +1,6 @@
 import confetti from "canvas-confetti";
 import { sound } from "./audio/SoundEngine";
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../convex/_generated/api";
 import type { Id, Doc } from "../convex/_generated/dataModel";
@@ -27,13 +27,16 @@ import {
   CheckCircle2,
   Image as ImageIcon,
   Flame,
-  GraduationCap
+  GraduationCap,
+  Volume2,
+  VolumeX,
+  Eye
 } from "lucide-react";
 
 import { SCENARIOS } from "./gameData";
 
 const calculateQuickScore = (remainingMs: number) => {
-  return Math.max(100, Math.floor(remainingMs / 10)); // Max ~6000 points
+  return Math.max(100, Math.floor(remainingMs / 10));
 };
 
 function sortPlayersByScore(players: Doc<"mlnPlayers">[]) {
@@ -70,6 +73,45 @@ const OPTION_THEMES: Record<string, { bg: string; border: string; badge: string;
     active: "bg-purple-600 border-purple-400 text-white"
   }
 };
+
+// ============================================================
+// IMAGE ZOOM MODAL
+// ============================================================
+function ImageZoomModal({ imageUrl, onClose }: { imageUrl: string | null; onClose: () => void }) {
+  return (
+    <AnimatePresence>
+      {imageUrl && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black/90 backdrop-blur-md z-[120] flex items-center justify-center p-4"
+          onClick={onClose}
+        >
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.9, opacity: 0 }}
+            className="relative max-w-4xl max-h-[85vh] flex flex-col items-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={onClose}
+              className="absolute -top-12 right-0 text-slate-300 hover:text-white bg-slate-800/80 p-2.5 rounded-full transition-colors border border-slate-700"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            <img
+              src={imageUrl}
+              alt="Gợi ý phóng to"
+              className="max-w-full max-h-[80vh] object-contain rounded-2xl border-2 border-amber-500/40 shadow-2xl"
+            />
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
 
 // ============================================================
 // RULES MODAL
@@ -129,7 +171,7 @@ function RulesModal({ show, onClose }: { show: boolean; onClose: () => void }) {
                       <ImageIcon className="w-5 h-5" /> 2. Đuổi Hình Bắt Chữ & Từ Khóa Học Thuật
                     </div>
                     <p className="text-sm text-slate-400">
-                      Nhìn gợi ý, số lượng tiếng và các ô chữ được lật mở dần theo thời gian. Người chơi có thể gõ thử liên tục đến khi đúng!
+                      Quan sát hình ảnh minh họa nghệ thuật, gợi ý số lượng tiếng và các ô chữ được lật mở dần theo thời gian. Có thể gõ thử liên tục đến khi đúng!
                     </p>
                   </div>
                 </div>
@@ -302,12 +344,16 @@ function WaitingRoom({
   isHost,
   onStart,
   onLeave,
+  musicEnabled,
+  onToggleMusic,
 }: {
   room: Doc<"mlnRooms">;
   players: Doc<"mlnPlayers">[];
   isHost: boolean;
   onStart: () => void;
   onLeave: () => void;
+  musicEnabled: boolean;
+  onToggleMusic: () => void;
 }) {
   const [copied, setCopied] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
@@ -341,7 +387,7 @@ function WaitingRoom({
           <p className="text-slate-400 text-sm">Mời các bạn cùng quét mã hoặc nhập mã số phòng bên dưới</p>
         </div>
 
-        {/* Room Code */}
+        {/* Room Code & Audio controls */}
         <div className="flex items-center justify-center gap-3 mb-6">
           <div className="bg-slate-950 border-2 border-amber-500/40 rounded-2xl px-6 sm:px-8 py-3.5 shadow-inner">
             <span className="font-mono text-3xl sm:text-4xl font-black text-amber-400 tracking-[0.3em]">{room.code}</span>
@@ -352,6 +398,17 @@ function WaitingRoom({
             className="p-3.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-all border border-slate-700"
           >
             {copied ? <Check className="w-6 h-6 text-emerald-400" /> : <Copy className="w-6 h-6" />}
+          </button>
+          <button
+            onClick={onToggleMusic}
+            title={musicEnabled ? "Tắt nhạc nền" : "Bật nhạc nền"}
+            className={`p-3.5 rounded-2xl transition-all border ${
+              musicEnabled
+                ? "bg-amber-500/20 text-amber-400 border-amber-500/40 hover:bg-amber-500/30"
+                : "bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700"
+            }`}
+          >
+            {musicEnabled ? <Volume2 className="w-6 h-6 animate-pulse" /> : <VolumeX className="w-6 h-6" />}
           </button>
         </div>
 
@@ -522,6 +579,7 @@ function GameplayView({
   onChoice,
   onForceRound,
   onEndGame,
+  onZoomImage,
 }: {
   room: Doc<"mlnRooms">;
   currentPlayer: Doc<"mlnPlayers">;
@@ -529,6 +587,7 @@ function GameplayView({
   onChoice: (answer: string, score: number) => void;
   onForceRound: () => void;
   onEndGame: () => void;
+  onZoomImage: (url: string) => void;
 }) {
   const [answer, setAnswer] = useState("");
   const [isWrong, setIsWrong] = useState(false);
@@ -538,7 +597,6 @@ function GameplayView({
 
   const scenario = SCENARIOS[room.currentRound - 1];
 
-  // Randomize reveal for catchphrase
   const revealOrder = useMemo(() => {
     if (!scenario || scenario.type !== "catchphrase") return [];
     const indices: number[] = [];
@@ -574,7 +632,6 @@ function GameplayView({
     return () => clearInterval(timer);
   }, [startTime, currentPlayer.isHost, onForceRound]);
 
-  // Handle Catchphrase input
   const handleSendCatchphraseAnswer = () => {
     if (!scenario || scenario.type !== "catchphrase") return;
     const normalize = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
@@ -598,7 +655,6 @@ function GameplayView({
     }
   };
 
-  // Handle Multiple Choice
   const handleSelectChoice = (opt: string) => {
     if (!scenario || scenario.type !== "choice" || currentPlayer.isHost || currentPlayer.hasSubmitted) return;
     const letter = opt.trim().charAt(0).toUpperCase();
@@ -621,6 +677,7 @@ function GameplayView({
   if (!scenario) return null;
 
   const isChoiceMode = scenario.type === "choice";
+  const scenarioImage = typeof scenario.image === "string" ? scenario.image : undefined;
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-4xl w-full px-4 mx-auto">
@@ -662,7 +719,9 @@ function GameplayView({
       </div>
 
       <div className="space-y-6 max-w-3xl mx-auto w-full">
+        {/* ============================================================ */}
         {/* MODE 1: TRẮC NGHIỆM */}
+        {/* ============================================================ */}
         {isChoiceMode && (
           <motion.div
             key={room.currentRound}
@@ -678,6 +737,28 @@ function GameplayView({
                 {scenario.question}
               </h2>
             </div>
+
+            {/* Optional Hint Image for Choice Question */}
+            {scenarioImage && (
+              <div
+                className="relative group rounded-2xl overflow-hidden border border-slate-800 bg-slate-950/80 max-h-48 flex items-center justify-center cursor-pointer shadow-lg"
+                onClick={() => onZoomImage(scenarioImage)}
+              >
+                <img
+                  src={scenarioImage}
+                  alt="Minh họa gợi ý"
+                  className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-500"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex items-end justify-between p-3 text-xs text-slate-300">
+                  <span className="flex items-center gap-1 font-semibold text-amber-300">
+                    <ImageIcon className="w-4 h-4" /> Hình ảnh gợi ý minh họa
+                  </span>
+                  <span className="bg-black/60 backdrop-blur px-2.5 py-1 rounded-lg flex items-center gap-1">
+                    <Eye className="w-3.5 h-3.5" /> Bấm để xem lớn
+                  </span>
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               {scenario.options?.map((opt) => {
@@ -730,7 +811,9 @@ function GameplayView({
           </motion.div>
         )}
 
-        {/* MODE 2: CATCHPHRASE (ĐOÁN TỪ) */}
+        {/* ============================================================ */}
+        {/* MODE 2: CATCHPHRASE (ĐOÁN TỪ + HÌNH ẢNH GỢI Ý) */}
+        {/* ============================================================ */}
         {!isChoiceMode && (
           <div className="space-y-5">
             <div className="bg-slate-900/90 backdrop-blur-md border border-slate-800 p-5 sm:p-7 rounded-3xl shadow-2xl text-center">
@@ -741,6 +824,29 @@ function GameplayView({
                 {scenario.question}
               </h2>
             </div>
+
+            {/* ARTWORK HINT IMAGE CARD */}
+            {scenarioImage && (
+              <motion.div
+                key={room.currentRound}
+                className="relative group rounded-3xl overflow-hidden border-2 border-amber-500/30 bg-slate-950/90 shadow-2xl max-h-64 sm:max-h-80 flex items-center justify-center cursor-pointer"
+                onClick={() => onZoomImage(scenarioImage)}
+              >
+                <img
+                  src={scenarioImage}
+                  alt="Hình gợi ý Đuổi hình bắt chữ"
+                  className="w-full max-h-64 sm:max-h-80 object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex items-end justify-between p-4 text-xs sm:text-sm text-slate-200">
+                  <span className="font-bold text-amber-300 flex items-center gap-1.5">
+                    <ImageIcon className="w-4 h-4 text-amber-400" /> Bức ảnh gợi ý từ khóa
+                  </span>
+                  <span className="bg-slate-900/80 backdrop-blur px-3 py-1.5 rounded-xl font-bold flex items-center gap-1 border border-slate-700 text-slate-300 group-hover:text-white">
+                    <Maximize2 className="w-3.5 h-3.5 text-amber-400" /> Nhấn để phóng to
+                  </span>
+                </div>
+              </motion.div>
+            )}
 
             {/* Hint Suggestion */}
             {scenario.suggestion && (
@@ -1071,6 +1177,13 @@ export default function App() {
   const [showRules, setShowRules] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [zoomImageUrl, setZoomImageUrl] = useState<string | null>(null);
+
+  // Background Audio elements
+  const lobbyAudioRef = useRef<HTMLAudioElement | null>(null);
+  const gameAudioRef = useRef<HTMLAudioElement | null>(null);
+  const winAudioRef = useRef<HTMLAudioElement | null>(null);
+  const [musicEnabled, setMusicEnabled] = useState(true);
 
   const [playerId, setPlayerId] = useState<string | null>(() => {
     try {
@@ -1115,6 +1228,38 @@ export default function App() {
     setRoomId(null);
     setError(null);
   }
+
+  // Audio Playback Synchronization
+  useEffect(() => {
+    const lobbyAudio = lobbyAudioRef.current;
+    const gameAudio = gameAudioRef.current;
+    const winAudio = winAudioRef.current;
+
+    if (!lobbyAudio || !gameAudio || !winAudio) return;
+
+    lobbyAudio.volume = 0.45;
+    gameAudio.volume = 0.45;
+    winAudio.volume = 0.55;
+
+    lobbyAudio.pause();
+    gameAudio.pause();
+    winAudio.pause();
+
+    if (musicEnabled) {
+      if (!roomId || !room || room.status === "lobby") {
+        lobbyAudio.play().catch(() => {});
+      } else if (room.status === "playing") {
+        gameAudio.play().catch(() => {});
+      } else if (room.status === "finished") {
+        winAudio.play().catch(() => {});
+      }
+    }
+  }, [roomId, room?.status, musicEnabled]);
+
+  const toggleMusic = () => {
+    sound.playClick();
+    setMusicEnabled((prev) => !prev);
+  };
 
   async function handleLeaveGame() {
     sound.playClick();
@@ -1201,9 +1346,29 @@ export default function App() {
   if (!isInRoom) {
     content = <LobbyView onCreateRoom={handleCreateRoom} onJoinRoom={handleJoinRoom} error={error} loading={loading} />;
   } else if (room.status === "lobby") {
-    content = <WaitingRoom room={room} players={players ?? []} isHost={isHost} onStart={handleStartGame} onLeave={handleLeaveGame} />;
+    content = (
+      <WaitingRoom
+        room={room}
+        players={players ?? []}
+        isHost={isHost}
+        onStart={handleStartGame}
+        onLeave={handleLeaveGame}
+        musicEnabled={musicEnabled}
+        onToggleMusic={toggleMusic}
+      />
+    );
   } else if (room.status === "playing" && room.phase === "choosing") {
-    content = <GameplayView room={room} currentPlayer={currentPlayer} players={players ?? []} onChoice={handleAnswerSubmit} onForceRound={handleForceProcessRound} onEndGame={handleEndGame} />;
+    content = (
+      <GameplayView
+        room={room}
+        currentPlayer={currentPlayer}
+        players={players ?? []}
+        onChoice={handleAnswerSubmit}
+        onForceRound={handleForceProcessRound}
+        onEndGame={handleEndGame}
+        onZoomImage={(url) => setZoomImageUrl(url)}
+      />
+    );
   } else if (room.status === "playing" && room.phase === "results") {
     content = <RoundResultsView room={room} players={players ?? []} isHost={isHost} onNextRound={handleNextRound} />;
   } else if (room.status === "finished") {
@@ -1212,6 +1377,11 @@ export default function App() {
 
   return (
     <div className="w-full min-h-screen flex flex-col items-center justify-start pt-6 pb-12 bg-[#080c16] text-slate-100 relative overflow-x-hidden selection:bg-amber-500 selection:text-slate-950">
+      {/* Background Audio Tracks */}
+      <audio ref={lobbyAudioRef} src="/sound/ovtk.mp3" loop preload="auto" />
+      <audio ref={gameAudioRef} src="/sound/liberation.mp3" loop preload="auto" />
+      <audio ref={winAudioRef} src="/sound/win.mp3" preload="auto" />
+
       {/* Background glow ornaments */}
       <div className="fixed inset-0 pointer-events-none opacity-40">
         <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-red-600/15 blur-[140px] rounded-full" />
@@ -1230,7 +1400,18 @@ export default function App() {
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={toggleMusic}
+            title={musicEnabled ? "Tắt nhạc nền" : "Bật nhạc nền"}
+            className={`p-2 rounded-full border transition-all ${
+              musicEnabled
+                ? "bg-amber-500/20 text-amber-400 border-amber-500/40 hover:bg-amber-500/30"
+                : "bg-slate-900 text-slate-400 border-slate-700 hover:bg-slate-800 hover:text-white"
+            }`}
+          >
+            {musicEnabled ? <Volume2 className="w-4 h-4 animate-pulse" /> : <VolumeX className="w-4 h-4" />}
+          </button>
           <button
             onClick={() => { sound.playClick(); setShowRules(true); }}
             className="flex items-center gap-1.5 px-3.5 py-1.5 bg-slate-900/90 hover:bg-slate-800 text-slate-300 hover:text-white rounded-full border border-slate-700 text-xs font-bold shadow-md transition-all"
@@ -1251,6 +1432,7 @@ export default function App() {
       </div>
 
       <RulesModal show={showRules} onClose={() => setShowRules(false)} />
+      <ImageZoomModal imageUrl={zoomImageUrl} onClose={() => setZoomImageUrl(null)} />
     </div>
   );
 }
