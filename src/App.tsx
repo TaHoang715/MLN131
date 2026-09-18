@@ -1,6 +1,6 @@
 import confetti from "canvas-confetti";
 import { sound } from "./audio/SoundEngine";
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../convex/_generated/api";
 import type { Id, Doc } from "../convex/_generated/dataModel";
@@ -17,8 +17,6 @@ import {
   Crown,
   Check,
   LogOut,
-  Volume2,
-  VolumeX,
   Timer,
   Send,
   Copy,
@@ -27,50 +25,49 @@ import {
   HelpCircle,
   Sparkles,
   CheckCircle2,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Flame,
+  GraduationCap
 } from "lucide-react";
 
 import { SCENARIOS } from "./gameData";
 
-
-
-
 const calculateQuickScore = (remainingMs: number) => {
-  return Math.floor(remainingMs / 10); // Tính điểm: thời gian còn lại (ms) chia 10 (tối đa ~6000 điểm)
+  return Math.max(100, Math.floor(remainingMs / 10)); // Max ~6000 points
 };
 
 function sortPlayersByScore(players: Doc<"mlnPlayers">[]) {
   return [...players].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
 }
 
-const OPTION_THEMES: Record<string, { bg: string; border: string; badgeBg: string; hover: string; ring: string }> = {
+const OPTION_THEMES: Record<string, { bg: string; border: string; badge: string; hover: string; active: string }> = {
   A: {
-    bg: "bg-sky-500/10",
-    border: "border-sky-500/30",
-    badgeBg: "bg-sky-600 text-white",
-    hover: "hover:bg-sky-500/20 hover:border-sky-500",
-    ring: "ring-sky-500"
+    bg: "bg-sky-950/40",
+    border: "border-sky-500/40",
+    badge: "bg-sky-500 text-slate-950",
+    hover: "hover:bg-sky-900/50 hover:border-sky-400",
+    active: "bg-sky-600 border-sky-400 text-white"
   },
   B: {
-    bg: "bg-emerald-500/10",
-    border: "border-emerald-500/30",
-    badgeBg: "bg-emerald-600 text-white",
-    hover: "hover:bg-emerald-500/20 hover:border-emerald-500",
-    ring: "ring-emerald-500"
+    bg: "bg-emerald-950/40",
+    border: "border-emerald-500/40",
+    badge: "bg-emerald-500 text-slate-950",
+    hover: "hover:bg-emerald-900/50 hover:border-emerald-400",
+    active: "bg-emerald-600 border-emerald-400 text-white"
   },
   C: {
-    bg: "bg-amber-500/10",
-    border: "border-amber-500/30",
-    badgeBg: "bg-amber-600 text-white",
-    hover: "hover:bg-amber-500/20 hover:border-amber-500",
-    ring: "ring-amber-500"
+    bg: "bg-amber-950/40",
+    border: "border-amber-500/40",
+    badge: "bg-amber-500 text-slate-950",
+    hover: "hover:bg-amber-900/50 hover:border-amber-400",
+    active: "bg-amber-600 border-amber-400 text-white"
   },
   D: {
-    bg: "bg-purple-500/10",
-    border: "border-purple-500/30",
-    badgeBg: "bg-purple-600 text-white",
-    hover: "hover:bg-purple-500/20 hover:border-purple-500",
-    ring: "ring-purple-500"
+    bg: "bg-purple-950/40",
+    border: "border-purple-500/40",
+    badge: "bg-purple-500 text-slate-950",
+    hover: "hover:bg-purple-900/50 hover:border-purple-400",
+    active: "bg-purple-600 border-purple-400 text-white"
   }
 };
 
@@ -85,74 +82,76 @@ function RulesModal({ show, onClose }: { show: boolean; onClose: () => void }) {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
+          className="fixed inset-0 bg-black/80 backdrop-blur-md z-[100] flex items-center justify-center p-4"
+          onClick={onClose}
         >
           <motion.div
             initial={{ scale: 0.95, opacity: 0, y: 20 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.95, opacity: 0, y: 20 }}
-            className="bg-surface rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col border border-outline-variant"
+            className="bg-slate-900 rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col border border-amber-500/40 text-slate-100"
+            onClick={(e) => e.stopPropagation()}
           >
-            <div className="bg-surface border-b border-outline-variant p-5 md:p-6 text-on-surface flex justify-between items-center shrink-0">
-              <h2 className="text-xl md:text-2xl font-headline font-bold flex items-center gap-3 tracking-tight text-primary">
-                <ScrollText className="w-6 h-6 md:w-7 md:h-7" /> Luật Chơi Đấu Trường Tri Thức
+            <div className="bg-slate-950 border-b border-slate-800 p-5 md:p-6 flex justify-between items-center shrink-0">
+              <h2 className="text-xl md:text-2xl font-bold flex items-center gap-3 tracking-tight text-amber-400 font-headline">
+                <ScrollText className="w-6 h-6 text-amber-400" /> Thể Lệ Đấu Trường Tri Thức MLN131
               </h2>
               <button
                 onClick={onClose}
-                className="text-on-surface-variant hover:text-on-surface hover:bg-surface-variant p-2 rounded-full transition-colors"
+                className="text-slate-400 hover:text-white hover:bg-slate-800 p-2 rounded-full transition-colors"
               >
                 <X className="w-6 h-6" />
               </button>
             </div>
 
-            <div className="p-6 md:p-8 overflow-y-auto space-y-6 text-on-surface-variant custom-scrollbar">
-              <div className="bg-primary/5 border-l-4 border-primary p-5 rounded-r-xl">
-                <p className="text-on-surface leading-relaxed italic text-lg font-medium">
-                  "Kết hợp giữa Trắc nghiệm phản xạ và Đuổi hình bắt chữ để chinh phục đỉnh cao kiến thức Tư tưởng Hồ Chí Minh!"
+            <div className="p-6 md:p-8 overflow-y-auto space-y-6 text-slate-300 custom-scrollbar">
+              <div className="bg-amber-500/10 border-l-4 border-amber-500 p-5 rounded-r-2xl">
+                <p className="text-amber-200 leading-relaxed italic text-base md:text-lg font-medium">
+                  "Hệ thống câu hỏi chuyên sâu về Dân chủ Xã hội Chủ nghĩa & Nhà nước Xã hội Chủ nghĩa - Môn Chủ nghĩa Xã hội Khoa học."
                 </p>
               </div>
 
               <section>
-                <h3 className="font-bold text-xl md:text-2xl text-on-surface mb-4">
-                  🎯 2 Thể Thức Vòng Thi (Tổng {SCENARIOS.length} Vòng)
+                <h3 className="font-bold text-lg md:text-xl text-white mb-3 flex items-center gap-2">
+                  <Flame className="w-5 h-5 text-amber-400" /> 2 Thể Thức Vòng Đấu (Tổng {SCENARIOS.length} Vòng)
                 </h3>
-                <div className="space-y-4 text-base md:text-lg">
-                  <div className="p-4 rounded-2xl bg-surface-variant/30 border border-outline-variant/40">
-                    <div className="font-bold text-primary flex items-center gap-2 mb-1">
-                      <HelpCircle className="w-5 h-5" /> 1. Trắc Nghiệm Nhanh Tay (A, B, C, D)
+                <div className="space-y-3">
+                  <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800">
+                    <div className="font-bold text-sky-400 flex items-center gap-2 mb-1">
+                      <HelpCircle className="w-5 h-5" /> 1. Trắc Nghiệm Phản Xạ Nhanh (A, B, C, D)
                     </div>
-                    <p className="text-sm md:text-base text-on-surface-variant">
-                      Đọc câu hỏi trên màn hình và bấm chọn phương án chính xác nhất càng sớm càng tốt.
+                    <p className="text-sm text-slate-400">
+                      Đọc câu hỏi lý luận và bấm chọn phương án chuẩn xác nhất. Thời gian nộp bài càng sớm điểm số cộng càng cao!
                     </p>
                   </div>
-                  <div className="p-4 rounded-2xl bg-surface-variant/30 border border-outline-variant/40">
-                    <div className="font-bold text-amber-500 flex items-center gap-2 mb-1">
-                      <ImageIcon className="w-5 h-5" /> 2. Đuổi Hình Bắt Chữ (Điền Từ Khóa)
+                  <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800">
+                    <div className="font-bold text-amber-400 flex items-center gap-2 mb-1">
+                      <ImageIcon className="w-5 h-5" /> 2. Đuổi Hình Bắt Chữ & Từ Khóa Học Thuật
                     </div>
-                    <p className="text-sm md:text-base text-on-surface-variant">
-                      Quan sát hình ảnh gợi ý nghệ thuật, ô chữ và gõ đáp án chính xác. Nếu sai có thể thử lại ngay cho đến khi hết giờ!
+                    <p className="text-sm text-slate-400">
+                      Nhìn gợi ý, số lượng tiếng và các ô chữ được lật mở dần theo thời gian. Người chơi có thể gõ thử liên tục đến khi đúng!
                     </p>
                   </div>
                 </div>
               </section>
 
               <section>
-                <h3 className="font-bold text-xl md:text-2xl text-on-surface mb-4">
-                  🏆 Cơ Chế Tính Điểm
+                <h3 className="font-bold text-lg md:text-xl text-white mb-3 flex items-center gap-2">
+                  <Trophy className="w-5 h-5 text-amber-400" /> Cách Tính Điểm Tốc Độ
                 </h3>
-                <div className="bg-surface p-6 rounded-2xl border border-amber-500/30 shadow-sm text-center">
-                  <div className="text-2xl font-bold text-amber-500 mb-2">Điểm tính theo Mili-giây!</div>
-                  <p className="text-base text-on-surface-variant">Thời gian còn lại càng nhiều, điểm số cộng dồn càng lớn (tối đa ~6000 điểm mỗi vòng).</p>
+                <div className="bg-slate-950 p-5 rounded-2xl border border-amber-500/20 text-center">
+                  <div className="text-2xl font-mono font-bold text-amber-400 mb-1">Tối đa ~6000 Điểm / Vòng</div>
+                  <p className="text-sm text-slate-400">Điểm = (Mili-giây còn lại trên đồng hồ / 10). Phản xạ càng chớp nhoáng, thứ hạng càng bứt phá!</p>
                 </div>
               </section>
             </div>
 
-            <div className="p-6 border-t border-outline-variant bg-surface-variant/30 flex justify-end shrink-0">
+            <div className="p-5 border-t border-slate-800 bg-slate-950 flex justify-end shrink-0">
               <button
                 onClick={onClose}
-                className="bg-primary text-on-primary px-10 py-3 rounded-xl font-bold text-lg hover:bg-primary/90 transition-all shadow-lg active:scale-95"
+                className="bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white px-8 py-3 rounded-xl font-bold text-base transition-all shadow-lg active:scale-95"
               >
-                Đã Hiểu, Sẵn Sàng!
+                Đã Rõ, Sẵn Sàng!
               </button>
             </div>
           </motion.div>
@@ -189,102 +188,106 @@ function LobbyView({
   });
   const [joinName, setJoinName] = useState("");
 
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: { opacity: 1, transition: { staggerChildren: 0.15 } },
-  };
-
   return (
     <motion.main
-      variants={containerVariants}
-      initial="hidden"
-      animate="visible"
+      initial={{ opacity: 0, y: 15 }}
+      animate={{ opacity: 1, y: 0 }}
       className="max-w-5xl w-full px-4 flex-grow flex flex-col justify-center pb-12"
     >
-      <motion.div className="text-center mb-12">
-        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-primary font-bold text-sm mb-4">
-          <Sparkles className="w-4 h-4" /> Đấu Trường Tri Thức · 10 Vòng Thi Đấu
+      <div className="text-center mb-10">
+        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-red-500/10 border border-red-500/30 text-amber-400 font-bold text-sm mb-4">
+          <GraduationCap className="w-4 h-4 text-red-400" /> MLN131 · CHỦ NGHĨA XÃ HỘI KHOA HỌC
         </div>
-        <h1 className="font-headline text-4xl md:text-5xl lg:text-6xl font-extrabold text-on-surface mb-5 tracking-tight uppercase">
-          Tư Tưởng <span className="text-primary">Hồ Chí Minh</span>
+        <h1 className="font-headline text-3xl sm:text-5xl lg:text-6xl font-black text-white mb-4 tracking-tight uppercase leading-tight">
+          ĐẤU TRƯỜNG <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-500 via-amber-400 to-amber-500">TRI THỨC</span>
         </h1>
-        <p className="text-lg md:text-xl text-on-surface-variant max-w-2xl mx-auto leading-relaxed">
-          Thử thách phản xạ trắc nghiệm & giải mã đuổi hình bắt chữ thời gian thực!
+        <p className="text-base sm:text-lg text-slate-300 max-w-2xl mx-auto leading-relaxed">
+          Chủ đề: <span className="text-amber-300 font-semibold">Dân chủ Xã hội Chủ nghĩa & Nhà nước Xã hội Chủ nghĩa</span>. Tranh tài trực tiếp cùng tập thể lớp!
         </p>
-      </motion.div>
+      </div>
 
       {error && (
-        <motion.div className="max-w-md mx-auto mb-6 bg-red-500/10 border border-red-500/30 text-red-600 px-5 py-3 rounded-xl text-center font-medium">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="max-w-md mx-auto mb-6 bg-red-500/20 border border-red-500/50 text-red-300 px-5 py-3 rounded-2xl text-center font-medium text-sm"
+        >
           {error}
         </motion.div>
       )}
 
-      <div className="flex flex-col md:flex-row gap-8 justify-center">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto w-full">
         {/* Host card */}
-        <motion.div className="group bg-surface rounded-3xl p-6 sm:p-8 lg:p-10 shadow-sm border border-outline-variant w-full md:w-1/2 flex flex-col items-center text-center">
-          <div className="bg-primary/10 p-5 rounded-full mb-6 text-primary group-hover:scale-110 transition-transform">
-            <MonitorPlay className="w-10 h-10" />
+        <div className="bg-slate-900/90 backdrop-blur-xl rounded-3xl p-6 sm:p-8 border border-slate-800 shadow-2xl flex flex-col items-center text-center relative overflow-hidden group hover:border-red-500/40 transition-all">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/5 rounded-bl-full pointer-events-none" />
+          <div className="bg-red-500/10 border border-red-500/30 p-4 rounded-2xl mb-5 text-red-400 group-hover:scale-110 transition-transform">
+            <MonitorPlay className="w-8 h-8" />
           </div>
-          <h2 className="text-2xl lg:text-3xl font-bold mb-3 text-on-surface">Bạn là Quản Trò?</h2>
-          <p className="text-on-surface-variant mb-8 text-base">Tạo phòng chơi mới, trình chiếu câu hỏi và bảng xếp hạng trên màn hình lớn.</p>
-          <div className="mt-auto w-full space-y-4">
+          <h2 className="text-2xl font-bold mb-2 text-white font-headline">Quản Trò / Giảng Viên</h2>
+          <p className="text-slate-400 mb-6 text-sm leading-relaxed">
+            Khởi tạo phòng đấu, trình chiếu bảng câu hỏi và bảng xếp hạng trực tiếp trên máy chiếu lớp học.
+          </p>
+          <div className="mt-auto w-full space-y-3.5">
             <input
               type="text"
-              placeholder="Tên của bạn"
+              placeholder="Tên người dẫn trò"
               value={hostName}
               onChange={(e) => setHostName(e.target.value)}
-              className="w-full bg-surface-variant/30 border border-outline-variant text-on-surface py-4 px-6 rounded-xl font-medium focus:outline-none focus:ring-2 focus:ring-primary text-center text-lg"
+              className="w-full bg-slate-950/80 border border-slate-700 focus:border-red-500 text-white py-3.5 px-4 rounded-xl font-medium focus:outline-none text-center text-base"
             />
             <input
               type="password"
-              placeholder="Mật khẩu tạo phòng"
+              placeholder="Nhập mật khẩu quản trò"
               value={hostPassword}
               onChange={(e) => setHostPassword(e.target.value)}
-              className="w-full bg-surface-variant/30 border border-outline-variant text-on-surface py-4 px-6 rounded-xl font-medium focus:outline-none focus:ring-2 focus:ring-primary text-center text-lg"
+              className="w-full bg-slate-950/80 border border-slate-700 focus:border-red-500 text-white py-3.5 px-4 rounded-xl font-medium focus:outline-none text-center text-base"
             />
             <button
               onClick={() => onCreateRoom(hostName.trim(), hostPassword)}
               disabled={!hostName.trim() || !hostPassword.trim() || loading}
-              className="w-full bg-primary text-on-primary py-4 rounded-xl font-bold text-lg hover:bg-primary/90 transition-colors flex justify-center items-center gap-3 shadow-lg disabled:opacity-50"
+              className="w-full bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white py-3.5 rounded-xl font-bold text-base transition-all flex justify-center items-center gap-2 shadow-lg shadow-red-950/50 disabled:opacity-50 active:scale-98"
             >
-              <PlusCircle className="w-6 h-6" />
-              {loading ? "Đang tạo..." : "Tạo Phòng Mới"}
+              <PlusCircle className="w-5 h-5" />
+              {loading ? "Đang tạo phòng..." : "Tạo Phòng Mới"}
             </button>
           </div>
-        </motion.div>
+        </div>
 
         {/* Player card */}
-        <motion.div className="group bg-surface rounded-3xl p-6 sm:p-8 lg:p-10 shadow-sm border border-outline-variant w-full md:w-1/2 flex flex-col items-center text-center">
-          <div className="bg-amber-500/10 p-5 rounded-full mb-6 text-amber-500 group-hover:scale-110 transition-transform">
-            <Users className="w-10 h-10" />
+        <div className="bg-slate-900/90 backdrop-blur-xl rounded-3xl p-6 sm:p-8 border border-slate-800 shadow-2xl flex flex-col items-center text-center relative overflow-hidden group hover:border-amber-500/40 transition-all">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/5 rounded-bl-full pointer-events-none" />
+          <div className="bg-amber-500/10 border border-amber-500/30 p-4 rounded-2xl mb-5 text-amber-400 group-hover:scale-110 transition-transform">
+            <Users className="w-8 h-8" />
           </div>
-          <h2 className="text-2xl lg:text-3xl font-bold mb-3 text-on-surface">Bạn là Người Chơi?</h2>
-          <p className="text-on-surface-variant mb-8 text-base">Nhập mã phòng từ màn hình của quản trò để tham gia tranh tài trực tiếp.</p>
-          <div className="w-full flex flex-col gap-4 mt-auto">
+          <h2 className="text-2xl font-bold mb-2 text-white font-headline">Sinh Viên Tham Gia</h2>
+          <p className="text-slate-400 mb-6 text-sm leading-relaxed">
+            Nhập mã phòng từ màn hình chiếu hoặc quét mã QR để bắt đầu tranh tài trả lời câu hỏi.
+          </p>
+          <div className="w-full flex flex-col gap-3.5 mt-auto">
             <input
               type="text"
-              placeholder="Nhập mã phòng"
+              placeholder="MÃ PHÒNG (5 SỐ)"
               value={joinCode}
               onChange={(e) => setJoinCode(e.target.value.replace(/\D/g, "").slice(0, 5))}
-              className="w-full bg-surface-variant/30 border border-outline-variant text-on-surface py-4 px-6 rounded-xl font-bold text-center text-xl tracking-widest uppercase focus:outline-none focus:ring-2 focus:ring-amber-500"
+              className="w-full bg-slate-950/80 border border-slate-700 focus:border-amber-500 text-amber-400 py-3.5 px-4 rounded-xl font-mono font-bold text-center text-xl tracking-[0.2em] uppercase focus:outline-none"
             />
             <input
               type="text"
-              placeholder="Nhập tên của bạn"
+              placeholder="Họ và tên của bạn"
               value={joinName}
               onChange={(e) => setJoinName(e.target.value)}
-              className="w-full bg-surface-variant/30 border border-outline-variant text-on-surface py-4 px-6 rounded-xl font-medium focus:outline-none focus:ring-2 focus:ring-amber-500 text-center text-lg"
+              className="w-full bg-slate-950/80 border border-slate-700 focus:border-amber-500 text-white py-3.5 px-4 rounded-xl font-medium focus:outline-none text-center text-base"
             />
             <button
               onClick={() => onJoinRoom(joinCode.trim(), joinName.trim())}
               disabled={!joinCode.trim() || !joinName.trim() || loading}
-              className="w-full bg-amber-500 text-white py-4 rounded-xl font-bold text-lg hover:bg-amber-600 transition-colors flex justify-center items-center gap-3 shadow-lg disabled:opacity-50"
+              className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 py-3.5 rounded-xl font-bold text-base transition-all flex justify-center items-center gap-2 shadow-lg shadow-amber-950/50 disabled:opacity-50 active:scale-98"
             >
-              <LogIn className="w-6 h-6" />
-              {loading ? "Đang tham gia..." : "Tham Gia Ngay"}
+              <LogIn className="w-5 h-5" />
+              {loading ? "Đang kết nối..." : "Vào Thi Ngay"}
             </button>
           </div>
-        </motion.div>
+        </div>
       </div>
     </motion.main>
   );
@@ -299,16 +302,12 @@ function WaitingRoom({
   isHost,
   onStart,
   onLeave,
-  musicEnabled,
-  onToggleMusic,
 }: {
   room: Doc<"mlnRooms">;
   players: Doc<"mlnPlayers">[];
   isHost: boolean;
   onStart: () => void;
   onLeave: () => void;
-  musicEnabled: boolean;
-  onToggleMusic: () => void;
 }) {
   const [copied, setCopied] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
@@ -318,6 +317,7 @@ function WaitingRoom({
   const canStart = nonHostPlayers.length > 0;
 
   const copyCode = () => {
+    sound.playClick();
     navigator.clipboard.writeText(room.code);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -327,6 +327,7 @@ function WaitingRoom({
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(joinLink)}`;
 
   const copyLink = () => {
+    sound.playClick();
     navigator.clipboard.writeText(joinLink);
     setLinkCopied(true);
     setTimeout(() => setLinkCopied(false), 2000);
@@ -334,53 +335,55 @@ function WaitingRoom({
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-2xl w-full px-4 mx-auto">
-      <div className="bg-surface rounded-3xl p-8 shadow-sm border border-outline-variant">
-        <div className="text-center mb-8">
-          <h2 className="font-headline text-3xl font-bold text-on-surface mb-3">Phòng Chờ</h2>
-          <p className="text-on-surface-variant">Chia sẻ mã phòng hoặc link QR để mời người chơi tham gia</p>
+      <div className="bg-slate-900/95 backdrop-blur-xl rounded-3xl p-6 sm:p-8 shadow-2xl border border-slate-800 text-slate-100">
+        <div className="text-center mb-6">
+          <h2 className="font-headline text-2xl sm:text-3xl font-bold text-white mb-2">Phòng Chờ Đấu Trường</h2>
+          <p className="text-slate-400 text-sm">Mời các bạn cùng quét mã hoặc nhập mã số phòng bên dưới</p>
         </div>
 
         {/* Room Code */}
-        <div className="flex items-center justify-center gap-4 mb-8">
-          <div className="bg-primary/5 border-2 border-primary/30 rounded-2xl px-8 py-4">
-            <span className="font-mono text-4xl font-bold text-primary tracking-[0.3em]">{room.code}</span>
+        <div className="flex items-center justify-center gap-3 mb-6">
+          <div className="bg-slate-950 border-2 border-amber-500/40 rounded-2xl px-6 sm:px-8 py-3.5 shadow-inner">
+            <span className="font-mono text-3xl sm:text-4xl font-black text-amber-400 tracking-[0.3em]">{room.code}</span>
           </div>
-          <button onClick={copyCode} title="Sao chép mã" className="p-3 rounded-xl bg-surface-variant/50 hover:bg-surface-variant text-on-surface-variant transition-colors">
-            {copied ? <Check className="w-6 h-6 text-emerald-500" /> : <Copy className="w-6 h-6" />}
-          </button>
-          <button onClick={onToggleMusic} title="Bật/Tắt nhạc nền" className="p-3 rounded-xl bg-surface-variant/50 hover:bg-surface-variant text-on-surface-variant transition-colors">
-            {musicEnabled ? <Volume2 className="w-6 h-6" /> : <VolumeX className="w-6 h-6" />}
+          <button
+            onClick={copyCode}
+            title="Sao chép mã phòng"
+            className="p-3.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-all border border-slate-700"
+          >
+            {copied ? <Check className="w-6 h-6 text-emerald-400" /> : <Copy className="w-6 h-6" />}
           </button>
         </div>
 
+        {/* QR Section */}
         {isHost && (
-          <div className="flex flex-col items-center bg-surface-variant/20 border border-outline-variant/30 rounded-2xl p-4 mb-8 max-w-xs mx-auto text-center">
-            <p className="text-sm font-bold text-on-surface-variant mb-3">Quét mã QR để vào phòng:</p>
-            <div 
-              className="relative group bg-white p-3 rounded-xl border border-outline-variant/20 shadow-sm cursor-pointer overflow-hidden"
-              onClick={() => setShowLargeQr(true)}
+          <div className="flex flex-col items-center bg-slate-950/80 border border-slate-800 rounded-2xl p-5 mb-6 max-w-xs mx-auto text-center">
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Quét mã QR bằng điện thoại:</p>
+            <div
+              className="relative group bg-white p-3 rounded-2xl border border-slate-700 shadow-md cursor-pointer overflow-hidden"
+              onClick={() => { sound.playClick(); setShowLargeQr(true); }}
             >
-              <img src={qrUrl} alt="Join QR Code" className="w-40 h-40 object-contain animate-fade-in" />
-              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-xs font-bold gap-1">
-                <Maximize2 className="w-4 h-4" />
-                <span>Phóng to</span>
+              <img src={qrUrl} alt="Join QR Code" className="w-40 h-40 object-contain" />
+              <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-xs font-bold gap-1">
+                <Maximize2 className="w-5 h-5 text-amber-400" />
+                <span>Phóng to màn hình</span>
               </div>
             </div>
-            
+
             <div className="flex gap-2 mt-4 w-full justify-center">
               <button
-                onClick={() => setShowLargeQr(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface hover:bg-surface-variant text-on-surface border border-outline-variant text-xs font-bold transition-all shadow-sm active:scale-95"
+                onClick={() => { sound.playClick(); setShowLargeQr(true); }}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition-all border border-slate-700"
               >
                 <Maximize2 className="w-3.5 h-3.5" /> Phóng to QR
               </button>
               <button
                 onClick={copyLink}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface hover:bg-surface-variant text-on-surface border border-outline-variant text-xs font-bold transition-all shadow-sm active:scale-95 min-w-[90px] justify-center"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition-all border border-slate-700 min-w-[100px] justify-center"
               >
                 {linkCopied ? (
                   <>
-                    <Check className="w-3.5 h-3.5 text-emerald-500" />
+                    <Check className="w-3.5 h-3.5 text-emerald-400" />
                     <span>Đã chép</span>
                   </>
                 ) : (
@@ -395,20 +398,21 @@ function WaitingRoom({
         )}
 
         {/* Player List */}
-        <div className="mb-8">
-          <h3 className="text-sm uppercase tracking-widest text-on-surface-variant font-bold mb-4 flex items-center gap-2">
-            <Users className="w-4 h-4" /> Người chơi ({players.length})
-          </h3>
-          <div className="space-y-2 max-h-56 overflow-y-auto custom-scrollbar pr-1">
+        <div className="mb-6">
+          <div className="flex justify-between items-center mb-3 text-xs uppercase tracking-widest text-slate-400 font-bold">
+            <span className="flex items-center gap-1.5"><Users className="w-4 h-4 text-amber-400" /> Danh sách thí sinh ({players.length})</span>
+            <span className="text-amber-400 font-mono">{nonHostPlayers.length} người chơi</span>
+          </div>
+          <div className="space-y-2 max-h-52 overflow-y-auto custom-scrollbar pr-1">
             {players.map((p) => (
-              <div key={p._id} className="flex items-center gap-3 bg-surface-variant/30 border border-outline-variant/50 px-5 py-3 rounded-xl">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg ${p.isHost ? "bg-primary text-on-primary" : "bg-amber-500/20 text-amber-600"}`}>
+              <div key={p._id} className="flex items-center gap-3 bg-slate-950/70 border border-slate-800/80 px-4 py-3 rounded-xl">
+                <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm ${p.isHost ? "bg-red-600 text-white" : "bg-amber-500/20 text-amber-400 border border-amber-500/30"}`}>
                   {p.name.charAt(0).toUpperCase()}
                 </div>
-                <span className="font-bold text-on-surface flex-1 truncate">{p.name}</span>
+                <span className="font-bold text-slate-200 flex-1 truncate text-sm sm:text-base">{p.name}</span>
                 {p.isHost && (
-                  <span className="flex items-center gap-1 text-xs font-bold text-primary bg-primary/10 px-3 py-1 rounded-full shrink-0">
-                    <Crown className="w-3.5 h-3.5" /> Chủ phòng
+                  <span className="flex items-center gap-1 text-xs font-bold text-red-400 bg-red-500/10 border border-red-500/20 px-2.5 py-1 rounded-full shrink-0">
+                    <Crown className="w-3 h-3" /> Chủ phòng
                   </span>
                 )}
               </div>
@@ -420,72 +424,75 @@ function WaitingRoom({
         <div className="flex flex-col gap-3">
           {isHost ? (
             <button
-              onClick={onStart}
+              onClick={() => { sound.playClick(); onStart(); }}
               disabled={!canStart}
-              className="w-full bg-primary text-on-primary py-4 rounded-xl font-bold text-lg hover:bg-primary/90 flex justify-center items-center gap-3 shadow-lg disabled:opacity-50 transition-all active:scale-98"
+              className="w-full bg-gradient-to-r from-red-600 via-amber-600 to-amber-500 hover:from-red-500 hover:to-amber-400 text-white py-4 rounded-xl font-bold text-lg flex justify-center items-center gap-2 shadow-xl disabled:opacity-40 transition-all active:scale-98"
             >
-              <Zap className="w-6 h-6" /> Bắt Đầu Trò Chơi ({SCENARIOS.length} Vòng)
+              <Zap className="w-6 h-6 text-amber-300" /> BẮT ĐẦU ĐẤU TRƯỜNG ({SCENARIOS.length} VÒNG)
             </button>
           ) : (
-            <div className="text-center py-4 text-on-surface-variant font-medium">
-              Đang chờ chủ phòng bắt đầu...
+            <div className="text-center py-3 text-slate-400 text-sm font-medium animate-pulse">
+              ⏳ Đang chờ Quản trò nhấn nút bắt đầu...
             </div>
           )}
-          <button onClick={onLeave} className="w-full py-3 rounded-xl font-medium text-on-surface-variant hover:text-red-500 hover:bg-red-500/5 flex justify-center items-center gap-2 border border-outline-variant/50 transition-colors">
-            <LogOut className="w-5 h-5" /> Rời phòng
+          <button
+            onClick={() => { sound.playClick(); onLeave(); }}
+            className="w-full py-2.5 rounded-xl text-sm font-medium text-slate-400 hover:text-red-400 hover:bg-red-500/10 flex justify-center items-center gap-2 transition-colors"
+          >
+            <LogOut className="w-4 h-4" /> Rời phòng
           </button>
         </div>
       </div>
 
-      {/* Enlarged QR Modal */}
+      {/* QR Modal */}
       <AnimatePresence>
         {showLargeQr && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/80 backdrop-blur-md z-[110] flex items-center justify-center p-4"
+            className="fixed inset-0 bg-black/90 backdrop-blur-md z-[110] flex items-center justify-center p-4"
             onClick={() => setShowLargeQr(false)}
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-surface rounded-3xl p-6 sm:p-8 max-w-md w-full border border-outline-variant shadow-2xl flex flex-col items-center relative"
+              className="bg-slate-900 rounded-3xl p-6 sm:p-8 max-w-md w-full border border-amber-500/40 shadow-2xl flex flex-col items-center relative text-white"
               onClick={(e) => e.stopPropagation()}
             >
               <button
                 onClick={() => setShowLargeQr(false)}
-                className="absolute top-4 right-4 text-on-surface-variant hover:text-on-surface hover:bg-surface-variant p-2 rounded-full transition-colors"
+                className="absolute top-4 right-4 text-slate-400 hover:text-white p-2 rounded-full transition-colors"
               >
                 <X className="w-6 h-6" />
               </button>
 
-              <h3 className="font-headline text-xl font-bold text-center text-on-surface mb-2">
-                Quét để Tham Gia Chơi
+              <h3 className="font-headline text-2xl font-bold text-center text-amber-400 mb-2">
+                Quét Mã QR Tham Gia
               </h3>
-              <p className="text-sm text-on-surface-variant text-center mb-6">
-                Mở camera điện thoại quét mã QR bên dưới để kết nối trực tiếp
+              <p className="text-xs text-slate-300 text-center mb-6">
+                Mở camera trên điện thoại quét trực tiếp để kết nối vào phòng thi
               </p>
 
-              <div className="bg-white p-5 rounded-2xl border border-outline-variant/20 shadow-md mb-6">
+              <div className="bg-white p-4 rounded-2xl border border-slate-700 shadow-md mb-6">
                 <img
                   src={`https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(joinLink)}`}
                   alt="Large Join QR Code"
-                  className="w-64 h-64 sm:w-80 sm:h-80 object-contain"
+                  className="w-60 h-60 sm:w-72 sm:h-72 object-contain"
                 />
               </div>
 
-              <div className="bg-primary/5 px-4 py-2.5 rounded-xl border border-primary/20 flex flex-col items-center gap-1 mb-6 w-full text-center">
-                <span className="text-xs text-outline uppercase tracking-wider font-bold">Mã phòng của bạn:</span>
-                <span className="font-mono text-3xl font-extrabold text-primary tracking-[0.2em] select-all">
+              <div className="bg-slate-950 px-5 py-3 rounded-xl border border-amber-500/30 flex flex-col items-center gap-0.5 mb-6 w-full text-center">
+                <span className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Mã phòng của bạn:</span>
+                <span className="font-mono text-3xl font-black text-amber-400 tracking-[0.25em]">
                   {room.code}
                 </span>
               </div>
 
               <button
                 onClick={copyLink}
-                className="w-full bg-primary text-on-primary py-4 rounded-xl font-bold hover:bg-primary/90 transition-all flex items-center justify-center gap-2 shadow-lg active:scale-95"
+                className="w-full bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white py-3.5 rounded-xl font-bold transition-all flex items-center justify-center gap-2 shadow-lg"
               >
                 {linkCopied ? (
                   <>
@@ -493,7 +500,7 @@ function WaitingRoom({
                   </>
                 ) : (
                   <>
-                    <Copy className="w-5 h-5" /> Sao Chép Link Tham Gia
+                    <Copy className="w-5 h-5" /> Sao Chép Đường Link
                   </>
                 )}
               </button>
@@ -526,13 +533,13 @@ function GameplayView({
   const [answer, setAnswer] = useState("");
   const [isWrong, setIsWrong] = useState(false);
   const [startTime] = useState(Date.now());
-  const [displayTime, setDisplayTime] = useState("60.0");
+  const [displayTime, setDisplayTime] = useState("60.00");
   const [selectedChoice, setSelectedChoice] = useState<string | null>(null);
 
   const scenario = SCENARIOS[room.currentRound - 1];
 
-  // Randomize indices to reveal characters in random order for catchphrase
-  const revealOrder = React.useMemo(() => {
+  // Randomize reveal for catchphrase
+  const revealOrder = useMemo(() => {
     if (!scenario || scenario.type !== "catchphrase") return [];
     const indices: number[] = [];
     for (let i = 0; i < scenario.correctAnswer.length; i++) {
@@ -540,7 +547,6 @@ function GameplayView({
         indices.push(i);
       }
     }
-    // Fisher-Yates shuffle
     for (let i = indices.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [indices[i], indices[j]] = [indices[j], indices[i]];
@@ -572,34 +578,42 @@ function GameplayView({
   const handleSendCatchphraseAnswer = () => {
     if (!scenario || scenario.type !== "catchphrase") return;
     const normalize = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-    const isCorrect = normalize(answer) === normalize(scenario.correctAnswer);
+    
+    const userAns = normalize(answer);
+    const correctAns = normalize(scenario.correctAnswer);
+    const isAccepted = scenario.acceptedAnswers?.some(a => normalize(a) === userAns) || userAns === correctAns;
 
-    if (isCorrect) {
+    if (isAccepted) {
+      sound.playQuizSuccess();
+      confetti({ particleCount: 60, spread: 70, origin: { y: 0.7 } });
       const el = Date.now() - startTime;
       const rem = Math.max(0, 60000 - el);
       const finalScore = calculateQuickScore(rem);
       onChoice(answer.trim(), finalScore);
     } else {
+      sound.playQuizWrong();
       setIsWrong(true);
       setTimeout(() => setIsWrong(false), 500);
       setAnswer("");
     }
   };
 
-  // Handle Multiple Choice click
+  // Handle Multiple Choice
   const handleSelectChoice = (opt: string) => {
     if (!scenario || scenario.type !== "choice" || currentPlayer.isHost || currentPlayer.hasSubmitted) return;
-    const letter = opt.trim().charAt(0).toUpperCase(); // "A", "B", "C", "D"
+    const letter = opt.trim().charAt(0).toUpperCase();
     setSelectedChoice(letter);
 
     const isCorrect = letter === scenario.correctAnswer.trim().toUpperCase();
     if (isCorrect) {
+      sound.playQuizSuccess();
+      confetti({ particleCount: 40, spread: 60, origin: { y: 0.7 } });
       const el = Date.now() - startTime;
       const rem = Math.max(0, 60000 - el);
       const finalScore = calculateQuickScore(rem);
       onChoice(letter, finalScore);
     } else {
-      // Sai: nộp đáp án 0 điểm để khóa lựa chọn
+      sound.playQuizWrong();
       onChoice(letter, 0);
     }
   };
@@ -610,67 +624,62 @@ function GameplayView({
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-4xl w-full px-4 mx-auto">
-      {/* Top Controls Bar */}
-      <div className="flex justify-between items-center mb-6 bg-surface p-4 rounded-2xl shadow-sm border border-outline-variant">
-        <div className="flex items-center gap-3">
-          <span className="bg-primary text-on-primary px-4 py-1 rounded-full font-bold">
-            Câu {room.currentRound}/{SCENARIOS.length}
+      {/* Top Header Bar */}
+      <div className="flex flex-wrap justify-between items-center gap-3 mb-6 bg-slate-900/90 backdrop-blur-md p-4 rounded-2xl border border-slate-800 shadow-xl">
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <span className="bg-gradient-to-r from-red-600 to-amber-600 text-white px-3.5 py-1 rounded-full font-bold text-sm shadow-sm">
+            Vòng {room.currentRound}/{SCENARIOS.length}
           </span>
           <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 ${
-            isChoiceMode ? "bg-sky-500/10 text-sky-600 border border-sky-500/30" : "bg-amber-500/10 text-amber-600 border border-amber-500/30"
+            isChoiceMode ? "bg-sky-500/10 text-sky-400 border border-sky-500/30" : "bg-amber-500/10 text-amber-400 border border-amber-500/30"
           }`}>
             {isChoiceMode ? <HelpCircle className="w-3.5 h-3.5" /> : <ImageIcon className="w-3.5 h-3.5" />}
-            {isChoiceMode ? "Trắc Nghiệm Nhanh Tay" : "Đuổi Hình Bắt Chữ"}
+            {isChoiceMode ? "Trắc Nghiệm Phản Xạ" : "Đuổi Hình Bắt Chữ"}
           </span>
 
           {currentPlayer.isHost && (
             <div className="flex gap-2 flex-wrap ml-2">
               <button
-                onClick={onForceRound}
-                className="bg-amber-500 hover:bg-amber-600 text-white px-3 py-1 rounded-full text-sm font-bold flex items-center gap-1 transition-colors shadow-sm"
+                onClick={() => { sound.playClick(); onForceRound(); }}
+                className="bg-amber-500 hover:bg-amber-400 text-slate-950 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 transition-colors shadow-sm"
               >
                 <Zap className="w-3.5 h-3.5" /> Qua vòng
               </button>
               <button
-                onClick={onEndGame}
-                className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-full text-sm font-bold flex items-center gap-1 transition-colors"
+                onClick={() => { sound.playClick(); onEndGame(); }}
+                className="bg-red-500/20 hover:bg-red-500 text-red-300 hover:text-white border border-red-500/40 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 transition-colors"
               >
-                <LogOut className="w-4 h-4" /> Kết thúc sớm
+                <LogOut className="w-3.5 h-3.5" /> Kết thúc
               </button>
             </div>
           )}
         </div>
 
-        <div className={`flex items-center gap-2 font-mono text-2xl font-bold ${parseFloat(displayTime) < 10 ? "text-red-500 animate-pulse" : "text-primary"}`}>
+        <div className={`flex items-center gap-2 font-mono text-2xl font-black ${parseFloat(displayTime) < 10 ? "text-red-500 animate-pulse" : "text-amber-400"}`}>
           <Timer className="w-6 h-6" />
           {displayTime}s
         </div>
       </div>
 
       <div className="space-y-6 max-w-3xl mx-auto w-full">
-        {/* ============================================================ */}
-        {/* MODE 1: TRẮC NGHIỆM (CHOICE A, B, C, D)                      */}
-        {/* ============================================================ */}
+        {/* MODE 1: TRẮC NGHIỆM */}
         {isChoiceMode && (
           <motion.div
             key={room.currentRound}
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
-            className="space-y-6"
+            className="space-y-5"
           >
-            {/* Question Card */}
-            <div className="bg-surface border-2 border-primary/30 p-6 md:p-8 rounded-3xl shadow-lg relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-bl-full pointer-events-none" />
-              <div className="text-xs uppercase tracking-widest text-primary font-extrabold mb-2 flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4" /> Câu Hỏi Trắc Nghiệm
+            <div className="bg-slate-900/90 backdrop-blur-md border border-slate-800 p-6 sm:p-8 rounded-3xl shadow-2xl relative overflow-hidden">
+              <div className="text-xs uppercase tracking-widest text-amber-400 font-extrabold mb-2 flex items-center gap-1.5">
+                <Sparkles className="w-4 h-4" /> {scenario.category}
               </div>
-              <h2 className="text-xl md:text-2xl lg:text-3xl font-headline font-bold text-on-surface leading-snug">
+              <h2 className="text-xl sm:text-2xl font-headline font-bold text-white leading-relaxed">
                 {scenario.question}
               </h2>
             </div>
 
-            {/* Options Grid (2x2 on desktop, stacked on mobile) */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               {scenario.options?.map((opt) => {
                 const letter = opt.trim().charAt(0).toUpperCase();
                 const theme = OPTION_THEMES[letter] || OPTION_THEMES.A;
@@ -682,20 +691,20 @@ function GameplayView({
                     key={letter}
                     onClick={() => handleSelectChoice(opt)}
                     disabled={isDisabled}
-                    whileHover={!isDisabled ? { scale: 1.02, y: -2 } : {}}
+                    whileHover={!isDisabled ? { scale: 1.02 } : {}}
                     whileTap={!isDisabled ? { scale: 0.98 } : {}}
-                    className={`text-left p-5 rounded-2xl border-2 transition-all flex items-start gap-4 shadow-sm relative overflow-hidden ${
+                    className={`text-left p-4 sm:p-5 rounded-2xl border-2 transition-all flex items-start gap-3.5 shadow-lg relative overflow-hidden ${
                       isSelected
-                        ? "bg-primary text-white border-primary ring-4 ring-primary/30 shadow-md"
-                        : `${theme.bg} ${theme.border} ${!isDisabled ? theme.hover : "opacity-90"} text-on-surface`
+                        ? theme.active
+                        : `${theme.bg} ${theme.border} ${!isDisabled ? theme.hover : "opacity-80"} text-slate-100`
                     }`}
                   >
-                    <span className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-lg shrink-0 shadow-sm ${
-                      isSelected ? "bg-white text-primary" : theme.badgeBg
+                    <span className={`w-8 h-8 rounded-xl flex items-center justify-center font-black text-base shrink-0 shadow-md ${
+                      isSelected ? "bg-white text-slate-950" : theme.badge
                     }`}>
                       {letter}
                     </span>
-                    <span className="font-semibold text-base md:text-lg flex-1 pt-1 leading-relaxed">
+                    <span className="font-medium text-sm sm:text-base flex-1 pt-0.5 leading-snug text-slate-200">
                       {opt.replace(/^[A-D]\.\s*/, "")}
                     </span>
                   </motion.button>
@@ -703,110 +712,62 @@ function GameplayView({
               })}
             </div>
 
-            {/* Player submission feedback */}
             {!currentPlayer.isHost && currentPlayer.hasSubmitted && (
               <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="bg-emerald-500/10 border-2 border-emerald-500/30 p-4 rounded-2xl text-center flex items-center justify-center gap-2 text-emerald-600 dark:text-emerald-400 font-bold text-lg"
+                className="bg-emerald-500/10 border-2 border-emerald-500/40 p-4 rounded-2xl text-center flex items-center justify-center gap-2 text-emerald-400 font-bold text-base"
               >
-                <CheckCircle2 className="w-6 h-6" /> Đã chốt đáp án {currentPlayer.currentChoice}! Chờ hết giờ để xem điểm số...
+                <CheckCircle2 className="w-5 h-5" /> Đã chốt lựa chọn {currentPlayer.currentChoice}! Đang chờ mọi người hoàn thành...
               </motion.div>
             )}
 
             {currentPlayer.isHost && (
-              <div className="bg-primary/5 border border-primary/20 p-4 rounded-2xl text-center text-primary font-medium">
-                Quản trò đang trình chiếu câu hỏi trắc nghiệm cho tất cả người chơi...
+              <div className="bg-slate-950/60 border border-slate-800 p-3.5 rounded-2xl text-center text-slate-400 text-sm font-medium">
+                📺 Máy chiếu quản trò đang phát sóng câu hỏi cho sinh viên trả lời...
               </div>
             )}
           </motion.div>
         )}
 
-        {/* ============================================================ */}
-        {/* MODE 2: ĐUỔI HÌNH BẮT CHỮ (CATCHPHRASE INPUT + IMAGE)       */}
-        {/* ============================================================ */}
+        {/* MODE 2: CATCHPHRASE (ĐOÁN TỪ) */}
         {!isChoiceMode && (
-          <div className="space-y-4 md:space-y-6">
-            {/* Question Text */}
-            <div className="bg-surface border border-outline-variant p-4 md:p-6 rounded-2xl shadow-sm text-center">
-              <h2 className="text-lg md:text-xl font-headline font-bold text-on-surface">
+          <div className="space-y-5">
+            <div className="bg-slate-900/90 backdrop-blur-md border border-slate-800 p-5 sm:p-7 rounded-3xl shadow-2xl text-center">
+              <div className="text-xs uppercase tracking-widest text-amber-400 font-extrabold mb-2">
+                {scenario.category}
+              </div>
+              <h2 className="text-lg sm:text-xl font-headline font-bold text-white leading-relaxed">
                 {scenario.question}
               </h2>
             </div>
 
-            {/* Image Preview */}
-            <motion.div
-              key={room.currentRound}
-              className="bg-surface p-2 sm:p-4 rounded-2xl sm:rounded-3xl shadow-xl border-4 border-primary/20 h-48 sm:h-64 md:h-auto md:aspect-video flex items-center justify-center overflow-hidden w-full"
-            >
-              {Array.isArray(scenario.image) ? (
-                <div className="flex items-center justify-center gap-4 w-full h-full">
-                  <div className="flex-1 h-full flex items-center justify-center overflow-hidden rounded-xl border border-outline-variant bg-black/20 relative group">
-                    <img src={scenario.image[0]} alt="Gợi ý 1" className="max-h-full max-w-full object-contain transition-transform duration-500 group-hover:scale-105" />
-                    <div className="absolute top-2 left-2 bg-primary/80 backdrop-blur text-white text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wider">Hình 1</div>
-                  </div>
-                  <div className="text-3xl font-black text-primary px-2 animate-pulse shrink-0">+</div>
-                  <div className="flex-1 h-full flex items-center justify-center overflow-hidden rounded-xl border border-outline-variant bg-black/20 relative group">
-                    <img src={scenario.image[1]} alt="Gợi ý 2" className="max-h-full max-w-full object-contain transition-transform duration-500 group-hover:scale-105" />
-                    <div className="absolute top-2 left-2 bg-amber-500/80 backdrop-blur text-white text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wider">Hình 2</div>
-                  </div>
-                </div>
-              ) : (
-                <img src={scenario.image} alt="Gợi ý Đuổi hình bắt chữ" className="max-h-full object-contain" />
-              )}
-            </motion.div>
-
-            {/* Input Box for Players */}
-            {!currentPlayer.isHost && !currentPlayer.hasSubmitted ? (
-              <motion.div
-                animate={isWrong ? { x: [-10, 10, -10, 10, 0] } : {}}
-                className="relative group"
-              >
-                <input
-                  type="text"
-                  value={answer}
-                  onChange={(e) => setAnswer(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleSendCatchphraseAnswer()}
-                  placeholder="Gõ đáp án chính xác..."
-                  className="w-full bg-surface border-2 md:border-4 border-outline-variant text-on-surface py-3 px-5 md:py-6 md:px-8 rounded-2xl md:rounded-3xl font-bold text-base md:text-2xl text-center focus:border-primary outline-none transition-all shadow-inner"
-                />
-                <button
-                  onClick={handleSendCatchphraseAnswer}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 bg-primary text-on-primary p-2 md:p-4 rounded-xl md:rounded-2xl hover:scale-110 active:scale-95 transition-all shadow-lg"
-                >
-                  <Send className="w-5 h-5 md:w-6 md:h-6" />
-                </button>
-              </motion.div>
-            ) : (
-              <div className="bg-primary/10 border-2 border-primary/20 p-6 md:p-8 rounded-2xl md:rounded-3xl text-center">
-                <p className="text-lg md:text-xl font-bold text-primary">
-                  {currentPlayer.isHost ? "Đang chờ người chơi nhập đáp án..." : "Đã gửi đáp án đúng! Đang chờ kết quả vòng..."}
-                </p>
-              </div>
-            )}
-
+            {/* Hint Suggestion */}
             {scenario.suggestion && (
               <div className="flex justify-center">
-                <p className="text-on-surface-variant italic font-medium bg-surface-variant/30 px-4 py-1.5 md:px-6 md:py-2 rounded-full text-xs md:text-base">
-                  💡 Gợi ý: {scenario.suggestion}
-                </p>
+                <div className="bg-amber-500/10 border border-amber-500/30 px-4 py-2 rounded-full text-xs sm:text-sm text-amber-300 italic font-medium flex items-center gap-2">
+                  <span>💡 Gợi ý:</span> {scenario.suggestion}
+                </div>
               </div>
             )}
 
             {/* HINT BOARD: Letter reveal boxes */}
-            <div className="flex flex-wrap justify-center gap-x-3 md:gap-x-6 gap-y-2 mt-2 md:mt-4 px-2">
+            <div className="flex flex-wrap justify-center gap-x-3 sm:gap-x-4 gap-y-2 py-3 px-2">
               {scenario.correctAnswer.split(" ").map((word, wordIdx, wordsArr) => {
                 const startIndex = wordsArr.slice(0, wordIdx).join(" ").length + (wordIdx > 0 ? 1 : 0);
                 return (
-                  <div key={wordIdx} className="flex gap-x-1">
+                  <div key={wordIdx} className="flex gap-x-1 sm:gap-x-1.5">
                     {word.split("").map((char, charIdx) => {
                       const absoluteIdx = startIndex + charIdx;
                       const isRevealed = revealedIndices.has(absoluteIdx);
                       return (
                         <div
                           key={charIdx}
-                          className={`w-7 h-9 sm:w-9 sm:h-11 md:w-11 md:h-14 rounded-lg flex items-center justify-center font-bold text-sm sm:text-lg md:text-2xl shadow-sm border-b-4 transition-all duration-300
-                            ${isRevealed ? "bg-primary text-white border-primary/80 scale-100" : "bg-surface-variant/50 border-outline-variant text-transparent scale-95"}`}
+                          className={`w-8 h-10 sm:w-11 sm:h-14 rounded-xl flex items-center justify-center font-black text-base sm:text-2xl shadow-md border-b-4 transition-all duration-300 ${
+                            isRevealed
+                              ? "bg-amber-500 text-slate-950 border-amber-600 scale-100"
+                              : "bg-slate-950 border-slate-800 text-transparent scale-95"
+                          }`}
                         >
                           {isRevealed ? char.toUpperCase() : ""}
                         </div>
@@ -816,37 +777,66 @@ function GameplayView({
                 );
               })}
             </div>
+
+            {/* Input Box */}
+            {!currentPlayer.isHost && !currentPlayer.hasSubmitted ? (
+              <motion.div
+                animate={isWrong ? { x: [-10, 10, -10, 10, 0] } : {}}
+                className="relative group max-w-xl mx-auto"
+              >
+                <input
+                  type="text"
+                  value={answer}
+                  onChange={(e) => setAnswer(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleSendCatchphraseAnswer()}
+                  placeholder="Gõ đáp án từ khóa vào đây..."
+                  className="w-full bg-slate-950 border-2 border-slate-700 focus:border-amber-500 text-white py-4 px-6 rounded-2xl font-bold text-lg sm:text-xl text-center outline-none transition-all shadow-inner"
+                />
+                <button
+                  onClick={handleSendCatchphraseAnswer}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 p-2.5 sm:p-3 rounded-xl hover:scale-105 active:scale-95 transition-all shadow-md"
+                >
+                  <Send className="w-5 h-5" />
+                </button>
+              </motion.div>
+            ) : (
+              <div className="bg-slate-950/80 border border-slate-800 p-5 rounded-2xl text-center max-w-xl mx-auto">
+                <p className="text-base font-bold text-amber-400">
+                  {currentPlayer.isHost ? "⏳ Đang chờ sinh viên gõ đáp án từ khóa..." : "✅ Đã nộp đáp án chính xác! Đang chờ tổng kết vòng..."}
+                </p>
+              </div>
+            )}
           </div>
         )}
 
         {/* Live Feed Bar */}
-        <div className="bg-surface rounded-3xl p-6 border border-outline-variant shadow-sm w-full overflow-hidden">
-          <h3 className="font-bold flex items-center gap-2 mb-4 uppercase text-sm tracking-widest text-outline">
-            <Zap className="w-4 h-4" /> Live Feed (Vừa Nộp Bài)
+        <div className="bg-slate-900/90 backdrop-blur-md rounded-2xl p-4 sm:p-5 border border-slate-800 shadow-xl w-full overflow-hidden">
+          <h3 className="font-bold flex items-center gap-2 mb-3 uppercase text-xs tracking-widest text-slate-400">
+            <Zap className="w-4 h-4 text-amber-400" /> Cập Nhật Tốc Độ Nộp Bài
           </h3>
-          <div className="flex gap-4 overflow-x-auto pb-2 custom-scrollbar">
+          <div className="flex gap-3 overflow-x-auto pb-1 custom-scrollbar">
             <AnimatePresence>
               {players
                 .filter(p => !p.isHost && p.hasSubmitted)
-                .sort((a, b) => (a.lastScoreIncrement ?? 0) - (b.lastScoreIncrement ?? 0))
+                .sort((a, b) => (b.lastScoreIncrement ?? 0) - (a.lastScoreIncrement ?? 0))
                 .map(p => (
                   <motion.div
                     key={p._id}
                     layout
-                    initial={{ opacity: 0, x: -50, scale: 0.8 }}
-                    animate={{ opacity: 1, x: 0, scale: 1 }}
-                    className="flex shrink-0 flex-col items-center justify-center bg-emerald-500/10 border-2 border-emerald-500/30 px-6 py-2 rounded-2xl min-w-[120px]"
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="flex shrink-0 items-center gap-2 bg-slate-950 border border-slate-800 px-4 py-2 rounded-xl text-sm font-semibold"
                   >
-                    <span className="font-bold text-lg truncate max-w-[100px] text-on-surface">{p.name}</span>
-                    <span className={`font-black ${(p.lastScoreIncrement ?? 0) > 0 ? "text-emerald-500" : "text-zinc-400"}`}>
+                    <span className="text-slate-200 truncate max-w-[90px]">{p.name}</span>
+                    <span className={`font-mono font-bold ${(p.lastScoreIncrement ?? 0) > 0 ? "text-emerald-400" : "text-slate-500"}`}>
                       {(p.lastScoreIncrement ?? 0) > 0 ? `+${p.lastScoreIncrement}` : "+0"}
                     </span>
                   </motion.div>
                 ))}
             </AnimatePresence>
             {players.filter(p => !p.isHost && !p.hasSubmitted).length > 0 && (
-              <div className="flex shrink-0 items-center text-on-surface-variant/50 italic px-4">
-                Đang chờ những người khác...
+              <div className="flex shrink-0 items-center text-slate-500 italic text-xs px-2">
+                Đang chờ các bạn khác...
               </div>
             )}
           </div>
@@ -903,7 +893,7 @@ function RoundResultsView({
   const scenario = SCENARIOS[room.currentRound - 1];
 
   useEffect(() => {
-    const t = setTimeout(() => setShowNewScore(true), 1000);
+    const t = setTimeout(() => setShowNewScore(true), 800);
     return () => clearTimeout(t);
   }, []);
 
@@ -913,7 +903,7 @@ function RoundResultsView({
     return bScore - aScore;
   });
 
-  const correctDisplay = React.useMemo(() => {
+  const correctDisplay = useMemo(() => {
     if (!scenario) return "";
     if (scenario.type === "choice") {
       const fullOpt = scenario.options?.find(o => o.startsWith(scenario.correctAnswer));
@@ -924,25 +914,30 @@ function RoundResultsView({
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-2xl w-full px-4 mx-auto space-y-6 text-center">
-      <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-bold text-sm">
+      <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold text-sm">
         <CheckCircle2 className="w-4 h-4" /> Kết Quả Vòng {room.currentRound}/{SCENARIOS.length}
       </div>
 
-      <div className="bg-emerald-500/10 border-2 border-emerald-500/30 rounded-3xl p-6 md:p-8">
-        <span className="text-xs uppercase tracking-widest font-bold text-emerald-600 dark:text-emerald-400 block mb-2">
-          Đáp án chính xác
+      <div className="bg-slate-900/90 backdrop-blur-md border-2 border-emerald-500/40 rounded-3xl p-6 sm:p-8 shadow-2xl text-left">
+        <span className="text-xs uppercase tracking-widest font-extrabold text-emerald-400 block mb-2">
+          Đáp Án Chính Xác
         </span>
-        <h3 className="text-2xl md:text-4xl font-extrabold text-emerald-600 dark:text-emerald-400 mb-4 leading-tight">
+        <h3 className="text-xl sm:text-3xl font-extrabold text-white mb-4 leading-tight font-headline">
           {correctDisplay}
         </h3>
-        <p className="text-on-surface-variant text-base md:text-lg leading-relaxed bg-surface/60 p-4 rounded-2xl border border-emerald-500/20">
+        <p className="text-slate-300 text-sm sm:text-base leading-relaxed bg-slate-950/80 p-4 rounded-2xl border border-slate-800 mb-3">
           {scenario?.description}
         </p>
+        {scenario?.philosophicalNote && (
+          <p className="text-amber-300 text-xs sm:text-sm italic bg-amber-500/10 p-3 rounded-xl border border-amber-500/20">
+            📜 Ý nghĩa lý luận: {scenario.philosophicalNote}
+          </p>
+        )}
       </div>
 
-      <div className="mt-8 flex flex-col gap-4 w-full max-w-xl mx-auto">
-        <h3 className="font-bold text-xl uppercase tracking-widest text-primary mb-2 flex items-center justify-center gap-2">
-          <Trophy className="w-5 h-5 text-amber-500" /> Bảng Xếp Hạng Hiện Tại
+      <div className="mt-6 flex flex-col gap-3 w-full max-w-xl mx-auto text-left">
+        <h3 className="font-bold text-lg uppercase tracking-widest text-amber-400 mb-1 flex items-center justify-center gap-2">
+          <Trophy className="w-5 h-5" /> Bảng Điểm Tích Lũy
         </h3>
         {sortedPlayers.map((p, index) => {
           const prevScore = (p.score ?? 0) - (p.lastScoreIncrement ?? 0);
@@ -954,51 +949,53 @@ function RoundResultsView({
               key={p._id}
               layout
               transition={{ type: "spring", stiffness: 300, damping: 25 }}
-              className={`flex items-center justify-between bg-surface-variant/30 px-6 py-4 rounded-2xl border-2 shadow-sm w-full
-                ${index === 0 ? "border-amber-400 bg-amber-50 dark:bg-amber-950/20" : "border-outline-variant"}
-              `}
+              className={`flex items-center justify-between px-5 py-3.5 rounded-2xl border shadow-lg ${
+                index === 0
+                  ? "bg-amber-950/40 border-amber-400/60"
+                  : index === 1
+                  ? "bg-slate-800/60 border-slate-600"
+                  : index === 2
+                  ? "bg-orange-950/30 border-orange-600/40"
+                  : "bg-slate-900/60 border-slate-800"
+              }`}
             >
-              <div className="flex items-center gap-4">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shadow-md
-                  ${index === 0 ? "bg-amber-500" : index === 1 ? "bg-slate-400" : index === 2 ? "bg-amber-700" : "bg-primary"}
-                `}>
+              <div className="flex items-center gap-3.5">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shadow-md ${
+                  index === 0 ? "bg-amber-400 text-slate-950" : index === 1 ? "bg-slate-300 text-slate-950" : index === 2 ? "bg-amber-700 text-white" : "bg-slate-800 text-slate-300"
+                }`}>
                   {index + 1}
                 </div>
-                <span className="font-bold text-xl text-on-surface truncate max-w-[150px]">{p.name}</span>
+                <span className="font-bold text-base text-white truncate max-w-[150px]">{p.name}</span>
               </div>
-              <div className="flex items-center gap-4 font-mono font-bold text-2xl">
+              <div className="flex items-center gap-3 font-mono font-bold text-xl">
                 {diff > 0 && (
                   <motion.span
                     initial={{ opacity: 0, scale: 0 }}
-                    animate={showNewScore ? { opacity: 0, y: -20, scale: 0.5 } : { opacity: 1, y: 0, scale: 1 }}
-                    className="text-emerald-500 text-lg"
+                    animate={showNewScore ? { opacity: 0, y: -15, scale: 0.5 } : { opacity: 1, y: 0, scale: 1 }}
+                    className="text-emerald-400 text-sm"
                   >
                     +{diff}
                   </motion.span>
                 )}
-                <motion.span
-                  animate={showNewScore && diff > 0 ? { scale: [1, 1.2, 1], color: ["#10b981", "#10b981", "#primary"] } : {}}
-                  transition={{ duration: 0.5 }}
-                  className={showNewScore && diff > 0 ? "text-emerald-500" : "text-on-surface"}
-                >
+                <span className={showNewScore && diff > 0 ? "text-emerald-400" : "text-amber-400"}>
                   <AnimatedNumber value={showNewScore ? currentScore : prevScore} />
-                </motion.span>
+                </span>
               </div>
             </motion.div>
           );
         })}
       </div>
 
-      <div className="text-center mt-8">
+      <div className="text-center pt-2">
         {isHost ? (
           <button
-            onClick={onNextRound}
-            className="bg-primary text-on-primary px-8 py-4 rounded-xl font-bold text-lg hover:bg-primary/90 transition-all shadow-lg active:scale-95 flex items-center gap-2 mx-auto"
+            onClick={() => { sound.playClick(); onNextRound(); }}
+            className="bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white px-8 py-3.5 rounded-xl font-bold text-base transition-all shadow-xl active:scale-95 flex items-center gap-2 mx-auto"
           >
-            {room.currentRound >= SCENARIOS.length ? "Xem Tổng Kết Chung Cuộc 🏆" : "Bắt Đầu Vòng Tiếp Theo ➔"}
+            {room.currentRound >= SCENARIOS.length ? "Xem Tổng Kết Bảng Vàng 🏆" : "Sang Vòng Tiếp Theo ➔"}
           </button>
         ) : (
-          <p className="text-on-surface-variant">Đang chờ chủ phòng chuyển sang vòng kế tiếp...</p>
+          <p className="text-slate-400 text-sm italic">Đang chờ Quản trò chuyển sang vòng kế tiếp...</p>
         )}
       </div>
     </motion.div>
@@ -1006,52 +1003,62 @@ function RoundResultsView({
 }
 
 // ============================================================
-// FINAL RESULTS VIEW: BẢNG VÀNG 
+// FINAL RESULTS VIEW: BẢNG VÀNG
 // ============================================================
 function FinalResultsView({ players, onPlayAgain }: { players: Doc<"mlnPlayers">[], onPlayAgain: () => void }) {
   const sorted = sortPlayersByScore(players.filter(p => !p.isHost));
 
+  useEffect(() => {
+    sound.playVictoryFanfare();
+    confetti({ particleCount: 100, spread: 80, origin: { y: 0.6 } });
+  }, []);
+
   return (
-    <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="max-w-2xl w-full mx-auto text-center space-y-8">
-      <div className="bg-primary/10 p-10 rounded-[40px] border-4 border-primary/20 shadow-2xl">
-        <Trophy className="w-20 h-20 text-amber-500 mx-auto mb-4 animate-bounce" />
-        <h1 className="text-4xl font-headline font-extrabold text-on-surface">BẢNG VÀNG VINH DANH</h1>
-        <p className="text-on-surface-variant mt-2 text-lg">Hoàn thành xuất sắc toàn bộ {SCENARIOS.length} vòng thi Tư tưởng Hồ Chí Minh</p>
+    <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="max-w-2xl w-full mx-auto text-center space-y-6 px-4">
+      <div className="bg-slate-900/95 backdrop-blur-xl p-8 sm:p-10 rounded-3xl border-2 border-amber-500/40 shadow-2xl">
+        <Trophy className="w-16 h-16 sm:w-20 sm:h-20 text-amber-400 mx-auto mb-3 animate-bounce" />
+        <h1 className="text-3xl sm:text-4xl font-headline font-black text-white">BẢNG VÀNG VINH DANH</h1>
+        <p className="text-slate-300 mt-2 text-sm sm:text-base">
+          Chúc mừng tất cả các bạn đã xuất sắc chinh phục {SCENARIOS.length} vòng thi môn MLN131!
+        </p>
       </div>
 
       <div className="space-y-3">
         {sorted.map((p, i) => (
           <motion.div
-            initial={{ x: -50, opacity: 0 }}
+            initial={{ x: -30, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
             transition={{ delay: i * 0.1 }}
             key={p._id}
-            className={`flex items-center gap-4 p-5 rounded-2xl border-2 ${
+            className={`flex items-center gap-4 p-4 sm:p-5 rounded-2xl border-2 shadow-xl ${
               i === 0
-                ? "bg-amber-50 dark:bg-amber-950/20 border-amber-300 shadow-lg"
+                ? "bg-amber-950/60 border-amber-400"
                 : i === 1
-                ? "bg-slate-50 dark:bg-slate-900/20 border-slate-300"
+                ? "bg-slate-800/80 border-slate-500"
                 : i === 2
-                ? "bg-orange-50 dark:bg-orange-950/20 border-orange-300"
-                : "bg-surface border-outline-variant"
+                ? "bg-orange-950/50 border-orange-600"
+                : "bg-slate-900/70 border-slate-800"
             }`}
           >
-            <span className={`w-12 h-12 flex items-center justify-center rounded-full font-black text-xl ${
-              i === 0 ? "bg-amber-400 text-white" : i === 1 ? "bg-slate-400 text-white" : i === 2 ? "bg-amber-700 text-white" : "bg-surface-variant text-on-surface"
+            <span className={`w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center rounded-2xl font-black text-lg ${
+              i === 0 ? "bg-amber-400 text-slate-950" : i === 1 ? "bg-slate-300 text-slate-950" : i === 2 ? "bg-amber-700 text-white" : "bg-slate-800 text-slate-400"
             }`}>
-              {i + 1}
+              {i === 0 ? <Crown className="w-6 h-6 text-slate-950" /> : i + 1}
             </span>
-            <span className="flex-1 text-left font-bold text-xl truncate">{p.name}</span>
+            <span className="flex-1 text-left font-bold text-lg sm:text-xl truncate text-white">{p.name}</span>
             <div className="text-right">
-              <div className="text-2xl font-mono font-black text-primary">{p.score ?? 0}</div>
-              <div className="text-[10px] uppercase font-bold text-outline">Điểm tích lũy</div>
+              <div className="text-xl sm:text-2xl font-mono font-black text-amber-400">{p.score ?? 0}</div>
+              <div className="text-[10px] uppercase font-bold text-slate-400">Điểm chung cuộc</div>
             </div>
           </motion.div>
         ))}
       </div>
 
-      <button onClick={onPlayAgain} className="bg-primary text-on-primary px-12 py-5 rounded-2xl font-bold text-xl shadow-xl hover:scale-105 active:scale-95 transition-all flex items-center gap-3 mx-auto">
-        <LogOut /> Quay lại sảnh chờ
+      <button
+        onClick={() => { sound.playClick(); onPlayAgain(); }}
+        className="bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white px-10 py-4 rounded-2xl font-bold text-lg shadow-xl hover:scale-105 active:scale-95 transition-all flex items-center gap-2 mx-auto"
+      >
+        <LogOut className="w-5 h-5" /> Quay Lại Trang Chủ
       </button>
     </motion.div>
   );
@@ -1065,27 +1072,22 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const lobbyAudioRef = useRef<HTMLAudioElement | null>(null);
-  const gameAudioRef = useRef<HTMLAudioElement | null>(null);
-  const winAudioRef = useRef<HTMLAudioElement | null>(null);
-  const [lobbyMusicEnabled, setLobbyMusicEnabled] = useState(true);
-
   const [playerId, setPlayerId] = useState<string | null>(() => {
     try {
-      const stored = localStorage.getItem("gameSession");
+      const stored = localStorage.getItem("mlnGameSession");
       return stored ? JSON.parse(stored).playerId : null;
     } catch { return null; }
   });
   const [roomId, setRoomId] = useState<string | null>(() => {
     try {
-      const stored = localStorage.getItem("gameSession");
+      const stored = localStorage.getItem("mlnGameSession");
       return stored ? JSON.parse(stored).roomId : null;
     } catch { return null; }
   });
 
   useEffect(() => {
     if (playerId && roomId) {
-      localStorage.setItem("gameSession", JSON.stringify({ playerId, roomId }));
+      localStorage.setItem("mlnGameSession", JSON.stringify({ playerId, roomId }));
     }
   }, [playerId, roomId]);
 
@@ -1108,13 +1110,14 @@ export default function App() {
   }, [room, currentPlayer, roomId, playerId]);
 
   function clearSession() {
-    localStorage.removeItem("gameSession");
+    localStorage.removeItem("mlnGameSession");
     setPlayerId(null);
     setRoomId(null);
     setError(null);
   }
 
   async function handleLeaveGame() {
+    sound.playClick();
     if (!playerId) {
       clearSession();
       return;
@@ -1125,8 +1128,9 @@ export default function App() {
   }
 
   async function handleCreateRoom(hostName: string, password?: string) {
+    sound.playClick();
     if (password !== "Admin@123") {
-      setError("Mật khẩu chủ phòng không chính xác!");
+      setError("Mật khẩu quản trò không chính xác!");
       return;
     }
     try {
@@ -1139,19 +1143,21 @@ export default function App() {
   }
 
   async function handleJoinRoom(code: string, name: string) {
+    sound.playClick();
     try {
       setLoading(true);
       setError(null);
       const result = await joinRoomMutation({ code, name });
       setPlayerId(result.playerId);
       setRoomId(result.roomId);
-    } catch (e: any) { setError(e.message || "Lỗi tham gia"); } finally { setLoading(false); }
+    } catch (e: any) { setError(e.message || "Lỗi tham gia phòng"); } finally { setLoading(false); }
   }
 
   async function handleStartGame() {
+    sound.playClick();
     try {
       await startGameMutation({ roomId: roomId as Id<"mlnRooms">, playerId: playerId as Id<"mlnPlayers"> });
-    } catch (e: any) { setError(e.message || "Lỗi bắt đầu"); }
+    } catch (e: any) { setError(e.message || "Lỗi bắt đầu trận đấu"); }
   }
 
   const handleAnswerSubmit = async (val: string, quickScore: number) => {
@@ -1162,61 +1168,40 @@ export default function App() {
         scoreIncrement: quickScore
       });
     } catch (e: any) {
-      console.error("Lỗi gửi đáp án", e);
       setError(e.message || "Lỗi gửi đáp án. Vui lòng thử lại!");
     }
   };
 
   async function handleForceProcessRound() {
+    sound.playClick();
     try {
       await forceProcessRoundMutation({ roomId: roomId as Id<"mlnRooms">, playerId: playerId as Id<"mlnPlayers"> });
-    } catch (e: any) { setError(e.message || "Không thể kết thúc vòng"); }
+    } catch (e: any) { setError(e.message || "Không thể chuyển vòng"); }
   }
 
   async function handleEndGame() {
+    sound.playClick();
     try {
       await endGameMutation({ roomId: roomId as Id<"mlnRooms">, playerId: playerId as Id<"mlnPlayers"> });
     } catch (e: any) { setError(e.message || "Lỗi kết thúc trò chơi"); }
   }
 
   async function handleNextRound() {
+    sound.playClick();
     try {
       await nextRoundMutation({ roomId: roomId as Id<"mlnRooms">, playerId: playerId as Id<"mlnPlayers"> });
     } catch (e: any) { setError(e.message || "Không thể chuyển vòng"); }
   }
 
   const isHost = currentPlayer?.isHost ?? false;
-  const isInRoom = roomId && playerId && room && currentPlayer;
-
-  // Audio Playback Logic
-  useEffect(() => {
-    const lobbyAudio = lobbyAudioRef.current;
-    const gameAudio = gameAudioRef.current;
-    const winAudio = winAudioRef.current;
-
-    if (!lobbyAudio || !gameAudio || !winAudio) return;
-
-    lobbyAudio.pause();
-    gameAudio.pause();
-    winAudio.pause();
-
-    if (lobbyMusicEnabled) {
-      if (!isInRoom || room?.status === "lobby") {
-        lobbyAudio.play().catch(() => {});
-      } else if (room?.status === "playing") {
-        gameAudio.play().catch(() => {});
-      } else if (room?.status === "finished") {
-        winAudio.play().catch(() => {});
-      }
-    }
-  }, [isInRoom, room?.status, lobbyMusicEnabled]);
+  const isInRoom = !!(roomId && playerId && room && currentPlayer);
 
   let content: React.ReactNode;
 
   if (!isInRoom) {
     content = <LobbyView onCreateRoom={handleCreateRoom} onJoinRoom={handleJoinRoom} error={error} loading={loading} />;
   } else if (room.status === "lobby") {
-    content = <WaitingRoom room={room} players={players ?? []} isHost={isHost} onStart={handleStartGame} onLeave={handleLeaveGame} musicEnabled={lobbyMusicEnabled} onToggleMusic={() => setLobbyMusicEnabled(v => !v)} />;
+    content = <WaitingRoom room={room} players={players ?? []} isHost={isHost} onStart={handleStartGame} onLeave={handleLeaveGame} />;
   } else if (room.status === "playing" && room.phase === "choosing") {
     content = <GameplayView room={room} currentPlayer={currentPlayer} players={players ?? []} onChoice={handleAnswerSubmit} onForceRound={handleForceProcessRound} onEndGame={handleEndGame} />;
   } else if (room.status === "playing" && room.phase === "results") {
@@ -1226,32 +1211,37 @@ export default function App() {
   }
 
   return (
-    <div className="w-full min-h-screen flex flex-col items-center justify-start pt-20 pb-12 bg-background">
-      <div className="fixed inset-0 pointer-events-none opacity-50">
-        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/10 blur-[120px] rounded-full" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-amber-500/10 blur-[120px] rounded-full" />
+    <div className="w-full min-h-screen flex flex-col items-center justify-start pt-6 pb-12 bg-[#080c16] text-slate-100 relative overflow-x-hidden selection:bg-amber-500 selection:text-slate-950">
+      {/* Background glow ornaments */}
+      <div className="fixed inset-0 pointer-events-none opacity-40">
+        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-red-600/15 blur-[140px] rounded-full" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-amber-500/15 blur-[140px] rounded-full" />
       </div>
 
-      <audio ref={lobbyAudioRef} src={ovtkMp3} loop muted={!lobbyMusicEnabled} />
-      <audio ref={gameAudioRef} src={liberationMp3} loop muted={!lobbyMusicEnabled} />
-      <audio ref={winAudioRef} src={winMp3} muted={!lobbyMusicEnabled} />
-
       {/* Top Bar */}
-      <div className="w-full max-w-5xl px-4 flex justify-between items-center mb-8 relative z-10">
-        {isInRoom && room.status !== "lobby" && (
-          <div className="bg-surface/80 backdrop-blur px-6 py-2 rounded-full border border-outline-variant shadow-sm font-bold text-primary">
-            Phòng: {room.code}
-          </div>
-        )}
-        <div className="ml-auto flex gap-3">
-          <button onClick={() => setShowRules(true)} className="p-3 bg-surface rounded-full border border-outline-variant shadow-sm hover:text-primary transition-colors">
-            <BookOpen className="w-6 h-6" />
+      <div className="w-full max-w-5xl px-4 flex justify-between items-center mb-6 relative z-10">
+        <div className="flex items-center gap-2">
+          <span className="font-headline font-black text-xl text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-amber-400">
+            MLN131
+          </span>
+          {isInRoom && room.status !== "lobby" && (
+            <span className="bg-slate-900 border border-slate-800 text-amber-400 font-mono text-xs font-bold px-3 py-1 rounded-full">
+              Phòng: {room.code}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => { sound.playClick(); setShowRules(true); }}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-slate-900/90 hover:bg-slate-800 text-slate-300 hover:text-white rounded-full border border-slate-700 text-xs font-bold shadow-md transition-all"
+          >
+            <BookOpen className="w-4 h-4 text-amber-400" /> Thể Lệ
           </button>
         </div>
       </div>
 
       {error && isInRoom && (
-        <div className="relative z-10 max-w-md mx-auto mb-4 bg-red-500/10 border border-red-500/30 text-red-600 px-5 py-3 rounded-xl text-center font-medium text-sm">
+        <div className="relative z-10 max-w-md mx-auto mb-4 bg-red-500/20 border border-red-500/40 text-red-300 px-4 py-2 rounded-xl text-center font-medium text-xs">
           {error}
         </div>
       )}
